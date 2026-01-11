@@ -24,10 +24,11 @@ async def generate_music(request: MusicGenerationRequest):
     """
     try:
         # Validate request
-        if not request.lyrics or len(request.lyrics.strip()) < 10:
+        # Lyrics are optional for instrumental music
+        if request.lyrics and len(request.lyrics.strip()) < 10:
             raise HTTPException(
                 status_code=400,
-                detail="Lyrics must be at least 10 characters long"
+                detail="Lyrics must be at least 10 characters long when provided"
             )
         
         if request.duration < 15 or request.duration > 300:

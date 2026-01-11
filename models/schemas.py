@@ -97,7 +97,7 @@ class LyricsGenerationRequest(BaseModel):
     language: str = Field("tr", description="Language code (tr, en, es)")
 
 class MusicGenerationRequest(BaseModel):
-    lyrics: str = Field(..., min_length=10, description="Generated lyrics")
+    lyrics: Optional[str] = Field(None, description="Generated lyrics (optional for instrumental)")
     story: str = Field(..., description="Original story")
     theme: MusicTheme = Field(..., description="Music theme")
     genre: MusicGenre = Field(MusicGenre.POP, description="Music genre")
