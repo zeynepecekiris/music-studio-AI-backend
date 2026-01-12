@@ -58,6 +58,7 @@ class VoiceGender(str, Enum):
     MALE = "male"
     FEMALE = "female"
     NEUTRAL = "neutral"
+    INSTRUMENTAL = "instrumental"
 
 class MusicMood(str, Enum):
     HAPPY = "happy"
