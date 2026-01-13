@@ -123,7 +123,7 @@ class LyricsResponse(BaseModel):
 class MusicGenerationResponse(BaseModel):
     id: str = Field(default_factory=lambda: str(uuid.uuid4()))
     audio_url: str
-    lyrics: str
+    lyrics: Optional[str] = None
     story: str
     theme: MusicTheme
     genre: MusicGenre
