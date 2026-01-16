@@ -87,120 +87,200 @@ class OpenAIService:
         language_configs = {
             "tr": {
                 "story_label": "Kullanıcının Hikayesi",
-                "instruction": "Lütfen bu hikayeye uygun, {theme} temalı bir şarkı sözü yazın.",
-                "requirements": """Şarkı sözü:
-- 4 kıta (verse) olsun
-- Her kıta 4 satır olsun  
-- Nakarat (chorus) ekleyin
-- Duygusal ve akılda kalıcı olsun
-- Hikayedeki detayları kullanın
-- Türkçe olarak yazın
-- Şarkı formatında olsun (Verse 1, Chorus, Verse 2, vs.)""",
-                "system_message": "Sen profesyonel bir şarkı sözü yazarısın. Kullanıcıların hikayelerini duygusal ve kaliteli şarkı sözlerine dönüştürüyorsun."
+                "instruction": "Bu hikayeyi 2 kıtalık şarkı sözüne dönüştür. Kullanıcının YAZDıĞı CÜMLELERİ DOĞRUDAN KULLAN.",
+                "requirements": """KESİN YAPISAL KURALLAR:
+1. TAM OLARAK 2 kıta (verse) yaz - 3 veya 4 kıta YASAK
+2. 1 nakarat (chorus) yaz
+3. Her kıta tam 4 satır olmalı
+
+KESİN İÇERİK KURALLARI:
+1. Kullanıcının hikayesindeki AYNI KELİMELERİ ve AYNI CÜMLELERİ kullan
+2. Kullanıcının yazdığı ifadeleri değiştirme, sadece şarkı formatına koy
+3. Kullanıcının cümlelerini al ve satırlara böl
+4. Sadece cümleler arası geçişler için 1-2 kelime ekleyebilirsin
+5. Nakaratı kullanıcının ana fikrinden oluştur
+
+ÖRNEK DÖNÜŞÜM:
+Hikaye: "Seninle geçirdiğim her an çok güzeldi. Gözlerinde kaybolurdum. Şimdi sen yoksun, ben yapayalnızım."
+
+[Verse 1]
+Seninle geçirdiğim her an çok güzeldi
+Gözlerinde kaybolurdum
+Şimdi sen yoksun
+Ben yapayalnızım
+
+Format: [Verse 1], [Chorus], [Verse 2], [Chorus] - BAŞKA FORMAT KULLANMA""",
+                "system_message": "Sen bir şarkı formatçısısın. Kullanıcının yazdığı hikayeyi KELİMESİ KELİMESİNE alıp şarkı formatına sokuyorsun. YENİ CÜMLELER YAZMA, kullanıcının yazdıklarını kullan. Sadece 2 verse + 1 chorus yaz."
             },
             "en": {
                 "story_label": "User's Story",
-                "instruction": "Please write song lyrics with {theme} theme based on this story.",
-                "requirements": """Song lyrics should:
-- Have 4 verses
-- Each verse should have 4 lines
-- Include a chorus
-- Be emotional and memorable
-- Use details from the story
-- Be written in English
-- Follow song format (Verse 1, Chorus, Verse 2, etc.)""",
-                "system_message": "You are a professional songwriter. You transform users' stories into emotional and high-quality song lyrics."
+                "instruction": "Transform this story into 2-verse song lyrics. Use the user's EXACT WORDS directly.",
+                "requirements": """STRICT STRUCTURAL RULES:
+1. Write EXACTLY 2 verses - 3 or 4 verses are FORBIDDEN
+2. Write 1 chorus
+3. Each verse must have exactly 4 lines
+
+STRICT CONTENT RULES:
+1. Use the SAME WORDS and SAME SENTENCES from the user's story
+2. Don't change user's phrases, just put them in song format
+3. Take user's sentences and break them into lines
+4. You may only add 1-2 words for transitions between sentences
+5. Create chorus from user's main idea
+
+EXAMPLE TRANSFORMATION:
+Story: "Every moment with you was beautiful. I got lost in your eyes. Now you're gone and I'm all alone."
+
+[Verse 1]
+Every moment with you was beautiful
+I got lost in your eyes
+Now you're gone
+And I'm all alone
+
+Format: [Verse 1], [Chorus], [Verse 2], [Chorus] - DO NOT USE OTHER FORMATS""",
+                "system_message": "You are a song formatter. You take the user's story WORD FOR WORD and put it into song format. DO NOT WRITE NEW SENTENCES, use what the user wrote. Only write 2 verses + 1 chorus."
             },
             "es": {
                 "story_label": "Historia del Usuario",
-                "instruction": "Por favor escribe letras de canción con tema {theme} basadas en esta historia.",
-                "requirements": """Las letras deben:
-- Tener 4 versos
-- Cada verso debe tener 4 líneas
-- Incluir un estribillo
-- Ser emocionales y memorables
-- Usar detalles de la historia
-- Estar escritas en español
-- Seguir formato de canción (Verso 1, Estribillo, Verso 2, etc.)""",
-                "system_message": "Eres un compositor profesional. Transformas las historias de los usuarios en letras emotivas y de alta calidad."
+                "instruction": "Transforma esta historia en letras de 2 versos. Usa las PALABRAS EXACTAS del usuario directamente.",
+                "requirements": """REGLAS ESTRUCTURALES ESTRICTAS:
+1. Escribe EXACTAMENTE 2 versos - 3 o 4 versos están PROHIBIDOS
+2. Escribe 1 estribillo
+3. Cada verso debe tener exactamente 4 líneas
+
+REGLAS DE CONTENIDO ESTRICTAS:
+1. Usa las MISMAS PALABRAS y MISMAS FRASES de la historia del usuario
+2. No cambies las frases del usuario, solo ponlas en formato de canción
+3. Toma las frases del usuario y divídelas en líneas
+4. Solo puedes añadir 1-2 palabras para transiciones entre frases
+5. Crea el estribillo de la idea principal del usuario
+
+EJEMPLO DE TRANSFORMACIÓN:
+Historia: "Cada momento contigo fue hermoso. Me perdía en tus ojos. Ahora no estás y estoy solo."
+
+[Verso 1]
+Cada momento contigo fue hermoso
+Me perdía en tus ojos
+Ahora no estás
+Y estoy solo
+
+Formato: [Verso 1], [Estribillo], [Verso 2], [Estribillo] - NO USES OTROS FORMATOS""",
+                "system_message": "Eres un formateador de canciones. Tomas la historia del usuario PALABRA POR PALABRA y la pones en formato de canción. NO ESCRIBAS NUEVAS FRASES, usa lo que el usuario escribió. Solo escribe 2 versos + 1 estribillo."
             },
             "ar": {
                 "story_label": "قصة المستخدم",
-                "instruction": "يرجى كتابة كلمات أغنية بموضوع {theme} بناءً على هذه القصة.",
-                "requirements": """يجب أن تكون كلمات الأغنية:
-- 4 مقاطع
-- كل مقطع يحتوي على 4 أسطر
-- تتضمن لازمة
-- عاطفية ولا تُنسى
-- تستخدم تفاصيل من القصة
-- مكتوبة بالعربية
-- تتبع تنسيق الأغنية (المقطع 1، اللازمة، المقطع 2، إلخ)""",
-                "system_message": "أنت كاتب أغاني محترف. تحول قصص المستخدمين إلى كلمات أغاني عاطفية وعالية الجودة."
+                "instruction": "حول هذه القصة إلى كلمات أغنية من مقطعين. استخدم الكلمات الدقيقة للمستخدم مباشرة.",
+                "requirements": """قواعد هيكلية صارمة:
+1. اكتب مقطعين بالضبط - 3 أو 4 مقاطع ممنوعة
+2. اكتب لازمة واحدة
+3. كل مقطع يجب أن يحتوي على 4 أسطر بالضبط
+
+قواعد محتوى صارمة:
+1. استخدم نفس الكلمات ونفس الجمل من قصة المستخدم
+2. لا تغير عبارات المستخدم، فقط ضعها في تنسيق الأغنية
+3. خذ جمل المستخدم واقسمها إلى أسطر
+4. يمكنك فقط إضافة كلمة أو كلمتين للانتقالات بين الجمل
+5. أنشئ اللازمة من الفكرة الرئيسية للمستخدم
+
+التنسيق: [المقطع 1]، [اللازمة]، [المقطع 2]، [اللازمة] - لا تستخدم تنسيقات أخرى""",
+                "system_message": "أنت منسق أغاني. تأخذ قصة المستخدم كلمة بكلمة وتضعها في تنسيق الأغنية. لا تكتب جملاً جديدة، استخدم ما كتبه المستخدم. اكتب فقط مقطعين + لازمة واحدة."
             },
             "de": {
                 "story_label": "Geschichte des Benutzers",
-                "instruction": "Bitte schreibe Songtexte mit dem Thema {theme} basierend auf dieser Geschichte.",
-                "requirements": """Songtexte sollten:
-- 4 Strophen haben
-- Jede Strophe sollte 4 Zeilen haben
-- Einen Refrain enthalten
-- Emotional und einprägsam sein
-- Details aus der Geschichte verwenden
-- Auf Deutsch geschrieben sein
-- Songformat folgen (Strophe 1, Refrain, Strophe 2, etc.)""",
-                "system_message": "Du bist ein professioneller Songwriter. Du verwandelst die Geschichten der Benutzer in emotionale und hochwertige Songtexte."
+                "instruction": "Verwandle diese Geschichte in 2-strophige Songtexte. Verwende die EXAKTEN WORTE des Benutzers direkt.",
+                "requirements": """STRIKTE STRUKTURREGELN:
+1. Schreibe GENAU 2 Strophen - 3 oder 4 Strophen sind VERBOTEN
+2. Schreibe 1 Refrain
+3. Jede Strophe muss genau 4 Zeilen haben
+
+STRIKTE INHALTSREGELN:
+1. Verwende die GLEICHEN WORTE und GLEICHEN SÄTZE aus der Geschichte des Benutzers
+2. Ändere die Phrasen des Benutzers nicht, setze sie nur in Songformat
+3. Nimm die Sätze des Benutzers und teile sie in Zeilen auf
+4. Du darfst nur 1-2 Wörter für Übergänge zwischen Sätzen hinzufügen
+5. Erstelle den Refrain aus der Hauptidee des Benutzers
+
+Format: [Strophe 1], [Refrain], [Strophe 2], [Refrain] - VERWENDE KEINE ANDEREN FORMATE""",
+                "system_message": "Du bist ein Song-Formatierer. Du nimmst die Geschichte des Benutzers WORT FÜR WORT und setzt sie in Songformat. SCHREIBE KEINE NEUEN SÄTZE, verwende was der Benutzer geschrieben hat. Schreibe nur 2 Strophen + 1 Refrain."
             },
             "fr": {
                 "story_label": "Histoire de l'utilisateur",
-                "instruction": "Veuillez écrire des paroles de chanson avec le thème {theme} basées sur cette histoire.",
-                "requirements": """Les paroles doivent:
-- Avoir 4 couplets
-- Chaque couplet doit avoir 4 lignes
-- Inclure un refrain
-- Être émotionnelles et mémorables
-- Utiliser des détails de l'histoire
-- Être écrites en français
-- Suivre le format de chanson (Couplet 1, Refrain, Couplet 2, etc.)""",
-                "system_message": "Vous êtes un auteur-compositeur professionnel. Vous transformez les histoires des utilisateurs en paroles émotionnelles et de haute qualité."
+                "instruction": "Transformez cette histoire en paroles de 2 couplets. Utilisez les MOTS EXACTS de l'utilisateur directement.",
+                "requirements": """RÈGLES STRUCTURELLES STRICTES:
+1. Écrivez EXACTEMENT 2 couplets - 3 ou 4 couplets sont INTERDITS
+2. Écrivez 1 refrain
+3. Chaque couplet doit avoir exactement 4 lignes
+
+RÈGLES DE CONTENU STRICTES:
+1. Utilisez les MÊMES MOTS et MÊMES PHRASES de l'histoire de l'utilisateur
+2. Ne changez pas les phrases de l'utilisateur, mettez-les juste en format chanson
+3. Prenez les phrases de l'utilisateur et divisez-les en lignes
+4. Vous ne pouvez ajouter que 1-2 mots pour les transitions entre phrases
+5. Créez le refrain à partir de l'idée principale de l'utilisateur
+
+Format: [Couplet 1], [Refrain], [Couplet 2], [Refrain] - N'UTILISEZ PAS D'AUTRES FORMATS""",
+                "system_message": "Vous êtes un formateur de chansons. Vous prenez l'histoire de l'utilisateur MOT POUR MOT et la mettez en format chanson. N'ÉCRIVEZ PAS DE NOUVELLES PHRASES, utilisez ce que l'utilisateur a écrit. Écrivez seulement 2 couplets + 1 refrain."
             },
             "it": {
                 "story_label": "Storia dell'utente",
-                "instruction": "Per favore scrivi testi di canzoni con tema {theme} basati su questa storia.",
-                "requirements": """I testi dovrebbero:
-- Avere 4 strofe
-- Ogni strofa dovrebbe avere 4 righe
-- Includere un ritornello
-- Essere emotivi e memorabili
-- Usare dettagli dalla storia
-- Essere scritti in italiano
-- Seguire il formato della canzone (Strofa 1, Ritornello, Strofa 2, ecc.)""",
-                "system_message": "Sei un autore di canzoni professionista. Trasformi le storie degli utenti in testi emotivi e di alta qualità."
+                "instruction": "Trasforma questa storia in testi di 2 strofe. Usa le PAROLE ESATTE dell'utente direttamente.",
+                "requirements": """REGOLE STRUTTURALI RIGOROSE:
+1. Scrivi ESATTAMENTE 2 strofe - 3 o 4 strofe sono VIETATE
+2. Scrivi 1 ritornello
+3. Ogni strofa deve avere esattamente 4 righe
+
+REGOLE DI CONTENUTO RIGOROSE:
+1. Usa le STESSE PAROLE e STESSE FRASI dalla storia dell'utente
+2. Non cambiare le frasi dell'utente, mettile solo in formato canzone
+3. Prendi le frasi dell'utente e dividile in righe
+4. Puoi aggiungere solo 1-2 parole per transizioni tra frasi
+5. Crea il ritornello dall'idea principale dell'utente
+
+Formato: [Strofa 1], [Ritornello], [Strofa 2], [Ritornello] - NON USARE ALTRI FORMATI""",
+                "system_message": "Sei un formattatore di canzoni. Prendi la storia dell'utente PAROLA PER PAROLA e la metti in formato canzone. NON SCRIVERE NUOVE FRASI, usa ciò che l'utente ha scritto. Scrivi solo 2 strofe + 1 ritornello."
             },
             "ko": {
                 "story_label": "사용자의 이야기",
-                "instruction": "이 이야기를 바탕으로 {theme} 테마의 노래 가사를 작성해주세요.",
-                "requirements": """가사는:
-- 4개의 절이 있어야 함
-- 각 절은 4줄이어야 함
-- 후렴구를 포함
-- 감성적이고 기억에 남아야 함
-- 이야기의 세부 사항을 사용
-- 한국어로 작성
-- 노래 형식을 따라야 함 (1절, 후렴, 2절 등)""",
-                "system_message": "당신은 전문 작사가입니다. 사용자의 이야기를 감성적이고 고품질의 노래 가사로 변환합니다."
+                "instruction": "이 이야기를 2절 가사로 변환하세요. 사용자의 정확한 단어를 직접 사용하세요.",
+                "requirements": """엄격한 구조 규칙:
+1. 정확히 2개의 절만 작성 - 3개 또는 4개 절은 금지
+2. 1개의 후렴구 작성
+3. 각 절은 정확히 4줄이어야 함
+
+엄격한 내용 규칙:
+1. 사용자 이야기의 같은 단어와 같은 문장을 사용하세요
+2. 사용자의 구문을 변경하지 말고 노래 형식으로만 배치하세요
+3. 사용자의 문장을 가져와서 줄로 나누세요
+4. 문장 사이의 전환을 위해 1-2개 단어만 추가할 수 있습니다
+5. 사용자의 주요 아이디어로 후렴구를 만드세요
+
+형식: [1절], [후렴], [2절], [후렴] - 다른 형식 사용 금지""",
+                "system_message": "당신은 노래 포맷터입니다. 사용자의 이야기를 단어 그대로 가져와서 노래 형식으로 만듭니다. 새로운 문장을 쓰지 말고 사용자가 쓴 것을 사용하세요. 2절 + 1 후렴구만 작성하세요."
             },
             "zh": {
                 "story_label": "用户的故事",
-                "instruction": "请根据这个故事写一首{theme}主题的歌词。",
-                "requirements": """歌词应该:
-- 有4个段落
-- 每个段落应该有4行
-- 包括副歌
-- 情感丰富且令人难忘
-- 使用故事中的细节
+                "instruction": "将这个故事转换为2节歌词。直接使用用户的确切词语。",
+                "requirements": """严格的结构规则:
+1. 准确写2节 - 禁止写3或4节
+2. 写1个副歌
+3. 每节必须恰好4行
+
+严格的内容规则:
+1. 使用用户故事中相同的词语和相同的句子
+2. 不要改变用户的短语，只将它们放入歌曲格式
+3. 取用户的句子并将其分成行
+4. 只能添加1-2个词用于句子之间的过渡
+5. 从用户的主要思想创建副歌
+
+格式：[第1节]、[副歌]、[第2节]、[副歌] - 不要使用其他格式""",
+                "system_message": "你是歌曲格式化器。你逐字逐句地采用用户的故事并将其转换为歌曲格式。不要写新句子，使用用户写的内容。只写2节 + 1副歌。"
+            }
+- 只在必要时添加连接短语和押韵词
+- 70-80%的歌词应该是用户自己的话
+- 以专业音乐家的风格编排，但保留用户的原始短语
+- 副歌应该反映故事的主要思想
 - 用中文写
-- 遵循歌曲格式（第1节、副歌、第2节等）""",
-                "system_message": "你是一位专业的词曲作者。你将用户的故事转化为情感丰富且高质量的歌词。"
+- 格式：[第1节]、[副歌]、[第2节]、[副歌]""",
+                "system_message": "你是一位专业的歌词编辑。你将用户自己写的故事转化为歌曲格式。你完全保持用户的句子原样，只进行最小的调整以适应韵律和节奏。"
             }
         }
         
@@ -221,18 +301,18 @@ class OpenAIService:
 
 {lang_config['requirements']}
 
-Format:
+Format örneği:
 [Verse 1]
-...
-
-[Chorus] 
-...
-
-[Verse 2]
-...
+(kullanıcının hikayesinden cümleler - 4 satır)
 
 [Chorus]
-...
+(ana fikir - 4 satır)
+
+[Verse 2]
+(kullanıcının hikayesinden cümleler - 4 satır)
+
+[Chorus]
+(aynı nakarat tekrar)
 """
 
             # Call OpenAI API with language-specific system message
