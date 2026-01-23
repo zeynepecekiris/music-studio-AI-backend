@@ -110,7 +110,7 @@ Gözlerinde kaybolurdum
 Ben yapayalnızım
 
 Format: [Verse 1], [Chorus], [Verse 2], [Chorus] - BAŞKA FORMAT KULLANMA""",
-                "system_message": "Sen bir şarkı formatçısısın. Kullanıcının yazdığı hikayeyi KELİMESİ KELİMESİNE alıp şarkı formatına sokuyorsun. YENİ CÜMLELER YAZMA, kullanıcının yazdıklarını kullan. Sadece 2 verse + 1 chorus yaz."
+                "system_message": "Sen bir metin formatçısısın, ŞARKI SÖZÜ YAZARI DEĞİLSİN. Görevin: Kullanıcının yazdığı metni AYNEN alıp sadece şarkı formatına koymak. ASLA kendi cümleler yazma. ASLA yaratıcı olma. Sadece kullanıcının yazdığı kelimeleri kopyala-yapıştır yap ve satırlara böl. Kullanıcının yazdığı her kelimeyi kullanmak ZORUNLU. Kendi eklediğin her kelime HATA. Sadece 2 verse + 1 chorus yaz."
             },
             "en": {
                 "story_label": "User's Story",
@@ -277,39 +277,42 @@ Formato: [Strofa 1], [Ritornello], [Strofa 2], [Ritornello] - NON USARE ALTRI FO
         }
         
         try:
-            # Get theme-specific prompt
-            theme_prompt = self.theme_prompts.get(theme, {}).get(language, self.theme_prompts[MusicTheme.LOVE]["en"])
-            
             # Get language config (default to English if not found)
             lang_config = language_configs.get(language, language_configs["en"])
             
-            # Create the full prompt in user's language
+            # Create the full prompt focusing ONLY on user's story
             full_prompt = f"""
-{theme_prompt}
+ÖNEMLİ: Kullanıcının anlattığı hikayeyi KELİMESİ KELİMESİNE kullan. Kendi cümleler YAZMA!
 
 {lang_config['story_label']}: "{story}"
 
-{lang_config['instruction'].format(theme=theme.value)}
+GÖREV: Bu hikayedeki CÜMLELERİ AYNEN kullanarak {theme.value} temalı şarkı sözü formatına dönüştür.
 
 {lang_config['requirements']}
 
-Format örneği:
+ÖNEMLİ HATIRLATMA:
+- Kullanıcının yazdığı "{story}" metnindeki KELİMELERİ ve CÜMLELERİ kullan
+- Kendi başına yeni cümleler oluşturma
+- Sadece kullanıcının yazdıklarını şarkı formatına koy
+- Tema ({theme.value}) sadece TON için, içerik kullanıcının hikayesinden gelecek
+
+DOĞRU FORMAT:
 [Verse 1]
-(kullanıcının hikayesinden cümleler - 4 satır)
+(hikayeden alınan 4 satır)
 
 [Chorus]
-(ana fikir - 4 satır)
+(hikayenin ana fikri - 4 satır)
 
 [Verse 2]
-(kullanıcının hikayesinden cümleler - 4 satır)
+(hikayeden alınan 4 satır)
 
 [Chorus]
-(aynı nakarat tekrar)
+(aynı nakarat)
 """
 
             # Call OpenAI API with language-specific system message
             response = await self.client.chat.completions.create(
-                model=settings.OPENAI_MODEL,
+                model="gpt-4o",  # Use gpt-4o for better understanding
                 messages=[
                     {
                         "role": "system", 
@@ -321,9 +324,9 @@ Format örneği:
                     }
                 ],
                 max_tokens=1500,
-                temperature=0.8,
-                presence_penalty=0.1,
-                frequency_penalty=0.1
+                temperature=0.3,  # Lower temperature for more literal translation
+                presence_penalty=0.0,  # Don't penalize using user's words
+                frequency_penalty=0.0  # Allow repetition of user's phrases
             )
             
             # Extract lyrics from response
