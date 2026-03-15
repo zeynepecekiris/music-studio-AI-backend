@@ -213,18 +213,16 @@ class ElevenLabsService:
         
         prompt_parts = [
             f"Create a professional {genre_desc} song in {language} with a {mood_desc} mood.",
-            f"CRITICAL: The song MUST start immediately with {instruments_str} playing from the very first second.",
-            f"The instrumental arrangement with {instruments_str} must play throughout the ENTIRE song from start to finish.",
-            f"DO NOT start with vocals only - instruments and vocals must play together from the beginning.",
-            f"Feature {vocal_desc} singing in {language}.",
+            f"The song features {instruments_str} playing throughout from the very beginning.",
+            f"Include {vocal_desc} singing in {language}.",
             f"Duration: {request.duration} seconds with verse-chorus structure.",
             theme_sentence,
         ]
-        
+
         if story_excerpt:
             prompt_parts.append(f"Story inspiration: {story_excerpt}")
-        
-        prompt_parts.append(f"IMPORTANT: {instruments_str} must be prominent and audible throughout the entire track, starting from second 0. Vocals in {language}. Professional studio production quality.")
+
+        prompt_parts.append(f"The arrangement features {instruments_str} prominently throughout. Vocals in {language}. Professional studio production quality.")
         
         prompt = " ".join([part for part in prompt_parts if part])
         
@@ -253,17 +251,13 @@ class ElevenLabsService:
             if lyrics_clean:
                 full_prompt = (
                     f"{prompt}\n\n"
-                    f"INSTRUMENTAL REQUIREMENT: All specified instruments MUST start playing from the very first second (0:00) of the track. "
-                    f"Create a 2-4 second musical intro with the instruments before vocals begin. "
-                    f"Then sing the following lyrics exactly as written in {language_name}, with instruments continuing throughout:\n\n"
-                    f"{lyrics_clean}\n\n"
-                    f"Remember: Instruments play from 0:00, vocals start after brief instrumental intro, both continue together until the end."
+                    f"Begin with a short 2-4 second instrumental intro, then sing the following lyrics in {language_name}:\n\n"
+                    f"{lyrics_clean}"
                 )
             else:
                 full_prompt = (
                     f"{prompt}\n\n"
-                    f"No lyrics provided. Create an instrumental track where all specified instruments play from second 0 throughout the entire duration. "
-                    f"Add simple melodic vocals with open syllables (la, oh, ah) in {language_name}."
+                    f"Create an engaging instrumental track with melodic vocals using open syllables (la, oh, ah) in {language_name}."
                 )
             
             # Use compose_detailed to get audio + metadata (including AI-generated lyrics if needed)
