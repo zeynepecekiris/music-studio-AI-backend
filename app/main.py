@@ -9,7 +9,7 @@ import uvicorn
 sys.path.append(os.path.dirname(os.path.dirname(__file__)))
 
 from config.settings import settings
-from api.routes import lyrics, music
+from api.routes import lyrics, music, video
 from api.routes import download_routes  # NEW: Download routes for MP3 files
 from models.schemas import HealthCheck
 
@@ -34,15 +34,18 @@ app.add_middleware(
 # Create upload directories
 os.makedirs(os.path.join(settings.UPLOAD_DIR, "music"), exist_ok=True)
 os.makedirs(os.path.join(settings.UPLOAD_DIR, "voices"), exist_ok=True)
+os.makedirs(os.path.join(settings.UPLOAD_DIR, "videos"), exist_ok=True)
 
-# Mount static files
-app.mount("/music", StaticFiles(directory=os.path.join(settings.UPLOAD_DIR, "music")), name="music")
-app.mount("/voices", StaticFiles(directory=os.path.join(settings.UPLOAD_DIR, "voices")), name="voices")
-
-# Include routers
+# Include routers FIRST (before static mounts)
 app.include_router(lyrics.router)
 app.include_router(music.router)
-app.include_router(download_routes.router)  # NEW: Download routes
+app.include_router(download_routes.router)
+app.include_router(video.router)
+
+# Mount static files (check_dir=False prevents startup crash on ephemeral FS)
+app.mount("/music", StaticFiles(directory=os.path.join(settings.UPLOAD_DIR, "music"), check_dir=False), name="music")
+app.mount("/voices", StaticFiles(directory=os.path.join(settings.UPLOAD_DIR, "voices"), check_dir=False), name="voices")
+app.mount("/videos", StaticFiles(directory=os.path.join(settings.UPLOAD_DIR, "videos"), check_dir=False), name="videos")
 
 @app.get("/", response_model=HealthCheck)
 async def health_check():
