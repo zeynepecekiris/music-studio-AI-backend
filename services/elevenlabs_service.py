@@ -212,26 +212,24 @@ class ElevenLabsService:
         theme_sentence = f"The lyrical theme is {request.theme.value}." if request.theme else ""
         
         prompt_parts = [
-            f"Create a professional {genre_desc} song in {language} with a {mood_desc} mood.",
-            f"The song features {instruments_str} playing throughout from the very beginning.",
-            f"Include {vocal_desc} singing in {language}.",
-            f"Duration: {request.duration} seconds with verse-chorus structure.",
-            theme_sentence,
+            f"A {mood_desc} {genre_desc} in {language} featuring {instruments_str} and {vocal_desc}.",
+            f"Verse-chorus structure, {request.duration} seconds long.",
         ]
 
-        if story_excerpt:
-            prompt_parts.append(f"Story inspiration: {story_excerpt}")
+        if theme_sentence:
+            prompt_parts.append(theme_sentence)
 
-        prompt_parts.append(f"The arrangement features {instruments_str} prominently throughout. Vocals in {language}. Professional studio production quality.")
-        
-        prompt = " ".join([part for part in prompt_parts if part])
-        
+        if story_excerpt:
+            prompt_parts.append(f"Inspired by: {story_excerpt}")
+
         if request.tempo < 90:
-            prompt += f" Slow tempo at {request.tempo} BPM with deliberate pacing."
+            prompt_parts.append(f"Slow tempo, {request.tempo} BPM.")
         elif request.tempo > 140:
-            prompt += f" Fast tempo at {request.tempo} BPM with energetic rhythm."
+            prompt_parts.append(f"Fast tempo, {request.tempo} BPM.")
         else:
-            prompt += f" Moderate tempo at {request.tempo} BPM with steady groove."
+            prompt_parts.append(f"Moderate tempo, {request.tempo} BPM.")
+
+        prompt = " ".join([part for part in prompt_parts if part])
         
         return prompt, language
     
@@ -251,13 +249,12 @@ class ElevenLabsService:
             if lyrics_clean:
                 full_prompt = (
                     f"{prompt}\n\n"
-                    f"Begin with a short 2-4 second instrumental intro, then sing the following lyrics in {language_name}:\n\n"
-                    f"{lyrics_clean}"
+                    f"Song lyrics in {language_name}:\n{lyrics_clean}"
                 )
             else:
                 full_prompt = (
                     f"{prompt}\n\n"
-                    f"Create an engaging instrumental track with melodic vocals using open syllables (la, oh, ah) in {language_name}."
+                    f"Melodic vocals with open syllables in {language_name}."
                 )
             
             # Use compose_detailed to get audio + metadata (including AI-generated lyrics if needed)
