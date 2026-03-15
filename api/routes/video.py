@@ -3,7 +3,7 @@ Video API Routes (FastAPI)
 music_video.mp4 loop + audio merge ile klip oluşturma
 """
 
-from fastapi import APIRouter, HTTPException
+from fastapi import APIRouter, HTTPException, UploadFile, File, Form
 from fastapi.responses import FileResponse
 from pydantic import BaseModel
 from typing import Optional
@@ -161,6 +161,75 @@ async def create_clip(request: CreateClipRequest):
             status_code=500,
             detail=f"Clip creation failed: {str(e)}"
         )
+
+
+@router.post("/create-clip-upload")
+async def create_clip_upload(
+    audio: UploadFile = File(...),
+    song_title: str = Form("Music Clip"),
+    duration: int = Form(60),
+):
+    """
+    POST /api/video/create-clip-upload
+    Multipart upload: ses dosyasını al, video ile birleştir.
+    Heroku ephemeral FS sorununu çözer — client kendi cache'inden yükler.
+    """
+    tmp_audio_file = None
+    try:
+        from services.video_service import VideoService
+
+        print(f"🎬 Create clip upload request:")
+        print(f"  - Song Title: {song_title}")
+        print(f"  - Duration: {duration}s")
+        print(f"  - Audio file: {audio.filename}, content_type: {audio.content_type}")
+
+        clip_id = str(uuid.uuid4())[:8]
+
+        videos_dir = os.path.join(
+            os.path.dirname(os.path.dirname(os.path.dirname(__file__))),
+            "uploads", "videos"
+        )
+        os.makedirs(videos_dir, exist_ok=True)
+
+        output_filename = f"clip_{clip_id}.mp4"
+        output_path = os.path.join(videos_dir, output_filename)
+
+        # Ses dosyasını geçici dosyaya kaydet
+        tmp_audio_file = tempfile.NamedTemporaryFile(suffix=".mp3", delete=False)
+        audio_content = await audio.read()
+        tmp_audio_file.write(audio_content)
+        tmp_audio_file.flush()
+        tmp_audio_file.close()
+        local_audio_path = tmp_audio_file.name
+
+        print(f"  - Audio saved to temp: {local_audio_path} ({len(audio_content)} bytes)")
+
+        try:
+            video_service = VideoService()
+            video_service.create_music_clip(
+                audio_path=local_audio_path,
+                song_title=song_title,
+                duration=duration,
+                output_path=output_path
+            )
+        finally:
+            if tmp_audio_file and os.path.exists(tmp_audio_file.name):
+                os.unlink(tmp_audio_file.name)
+
+        video_url = f"/videos/{output_filename}"
+        print(f"✅ Clip created via upload: {video_url}")
+
+        return {"video_url": video_url, "clip_id": clip_id, "status": "completed", "duration": duration}
+
+    except Exception as e:
+        print(f"❌ Clip upload error: {str(e)}")
+        print(traceback.format_exc())
+        if tmp_audio_file and os.path.exists(tmp_audio_file.name):
+            try:
+                os.unlink(tmp_audio_file.name)
+            except Exception:
+                pass
+        raise HTTPException(status_code=500, detail=f"Clip creation failed: {str(e)}")
 
 
 @router.get("/health")
