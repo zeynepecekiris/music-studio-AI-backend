@@ -161,17 +161,13 @@ class VideoService:
             '-i', audio_path,
             '-map', '0:v',  # Video template'ten
             '-map', '1:a',  # Audio müzik dosyasından
-            '-c:v', 'libx264',
-            '-preset', 'fast',
-            '-profile:v', 'high',
-            '-level', '4.2',
-            '-pix_fmt', 'yuv420p',
+            '-c:v', 'copy',       # Video'yu re-encode etme, kopyala (düşük RAM)
             '-c:a', 'aac',
-            '-b:a', '192k',
+            '-b:a', '128k',
             '-ar', '44100',
-            '-shortest',  # Müzik bitince kes
-            '-movflags', '+faststart',  # Web streaming için optimize et
-            '-y',  # Overwrite
+            '-shortest',          # Müzik bitince kes
+            '-movflags', '+faststart',
+            '-y',                 # Overwrite
             output_path
         ]
         
