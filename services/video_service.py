@@ -26,10 +26,9 @@ class VideoService:
         """
         # music_video.mp4 -> project root / assets / music_video.mp4
         self.template_video_path = template_video_path or os.path.join(
-            os.path.dirname(__file__), 
-            '..', 
-            '..', 
-            'assets', 
+            os.path.dirname(__file__),
+            '..',
+            'assets',
             'music_video.mp4'
         )
         
