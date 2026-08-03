@@ -7,8 +7,8 @@ Creates instrumental tracks based on style, instruments, and mood
 import os
 import random
 from typing import List, Dict, Any
-from pydub import AudioSegment
-from pydub.generators import Sine, Sawtooth, Square
+# from pydub import AudioSegment  # Temporarily disabled due to Python 3.13 compatibility
+# from pydub.generators import Sine, Sawtooth, Square  # Temporarily disabled due to Python 3.13 compatibility
 import numpy as np
 
 class BackgroundMusicGenerator:

@@ -17,6 +17,9 @@ OPENAI_MODEL=gpt-4
 ELEVENLABS_API_KEY=your_elevenlabs_api_key_here
 ELEVENLABS_VOICE_ID=your_default_voice_id
 
+# Fal AI Configuration (Video Generation)
+FAL_KEY=your_fal_api_key_here
+
 # Security
 SECRET_KEY=musician-secret-key-2024
 ALGORITHM=HS256

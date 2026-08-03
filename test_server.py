@@ -60,6 +60,75 @@ app.mount("/music", StaticFiles(directory="static/music"), name="music")
 # In-memory task storage
 TASKS: Dict[str, Dict] = {}
 
+# Theme-specific prompts
+THEME_PROMPTS = {
+    "love": {
+        "tr": "Aşk temalı, romantik ve duygusal bir şarkı sözü yazın.",
+        "en": "Write romantic and emotional song lyrics about love.",
+        "es": "Escribe letras románticas y emocionales sobre el amor."
+    },
+    "friendship": {
+        "tr": "Dostluk temalı, arkadaşlık bağının gücünü anlatan şarkı sözü yazın.",
+        "en": "Write song lyrics about friendship and its power.",
+        "es": "Escribe letras sobre la amistad y su poder."
+    },
+    "country": {
+        "tr": "Memleket sevgisi temalı şarkı sözü yazın.",
+        "en": "Write song lyrics about homeland love.",
+        "es": "Escribe letras sobre el amor a la patria."
+    },
+    "nostalgia": {
+        "tr": "Nostalji temalı, geçmişin güzel anılarını anlatan şarkı sözü yazın.",
+        "en": "Write nostalgic song lyrics about beautiful memories from the past.",
+        "es": "Escribe letras nostálgicas sobre hermosos recuerdos del pasado."
+    },
+    "hope": {
+        "tr": "Umut temalı, gelecekteki güzel günlere olan inancı anlatan şarkı sözü yazın.",
+        "en": "Write hopeful song lyrics about faith in beautiful future days.",
+        "es": "Escribe letras esperanzadoras sobre la fe en días futuros hermosos."
+    },
+    "family": {
+        "tr": "Aile temalı, ailenin sıcaklığını anlatan şarkı sözü yazın.",
+        "en": "Write family-themed song lyrics about family warmth.",
+        "es": "Escribe letras familiares sobre la calidez familiar."
+    },
+    "adventure": {
+        "tr": "Macera temalı, yeni yerler keşfetmeyi anlatan şarkı sözü yazın.",
+        "en": "Write adventure-themed song lyrics about discovering new places.",
+        "es": "Escribe letras de aventura sobre descubrir nuevos lugares."
+    },
+    "peace": {
+        "tr": "Barış temalı, iç huzuru ve sakinliği anlatan şarkı sözü yazın.",
+        "en": "Write peace-themed song lyrics about inner peace and tranquility.",
+        "es": "Escribe letras de paz sobre la paz interior y la tranquilidad."
+    },
+    "heartbreak": {
+        "tr": "Kırık kalp temalı, ayrılık acısını anlatan şarkı sözü yazın.",
+        "en": "Write heartbreak-themed song lyrics about the pain of separation.",
+        "es": "Escribe letras de desamor sobre el dolor de la separación."
+    },
+    "happiness": {
+        "tr": "Mutluluk temalı, yaşamın güzel anlarını anlatan şarkı sözü yazın.",
+        "en": "Write happiness-themed song lyrics about life's beautiful moments.",
+        "es": "Escribe letras de felicidad sobre los hermosos momentos de la vida."
+    },
+    "sadness": {
+        "tr": "Hüzün temalı, üzüntü ve duygusal derinliği anlatan şarkı sözü yazın.",
+        "en": "Write sadness-themed song lyrics about sorrow and emotional depth.",
+        "es": "Escribe letras de tristeza sobre la pena y la profundidad emocional."
+    },
+    "celebration": {
+        "tr": "Kutlama temalı, başarıları ve mutlu anları kutlayan şarkı sözü yazın.",
+        "en": "Write celebration-themed song lyrics celebrating achievements and happy moments.",
+        "es": "Escribe letras de celebración celebrando logros y momentos felices."
+    },
+    "motivation": {
+        "tr": "Motivasyon temalı, ilham verici ve güçlendirici şarkı sözü yazın.",
+        "en": "Write motivation-themed song lyrics that are inspiring and empowering.",
+        "es": "Escribe letras motivacionales que sean inspiradoras y empoderadoras."
+    }
+}
+
 @app.get("/")
 async def root():
     """Root endpoint"""
@@ -72,6 +141,7 @@ async def root():
 # Request/Response models
 class LyricsRequest(BaseModel):
     story: str
+    title: Optional[str] = None
     theme: str
     language: str = "tr"
 
@@ -128,94 +198,105 @@ async def generate_lyrics(request: LyricsRequest):
         if not os.getenv("OPENAI_API_KEY"):
             raise HTTPException(status_code=500, detail="OpenAI API key not configured")
         
-        # Language-specific system prompts and instructions
-        language_config = {
-            "tr": {
-                "system": "Sen profesyonel bir şarkı sözü yazarısın. Kullanıcıların hikayelerini duygusal ve kaliteli şarkı sözlerine dönüştürüyorsun.",
-                "user_prefix": "Kullanıcının Hikayesi:",
-                "instructions": "Lütfen bu hikayeye uygun, {theme} temalı bir şarkı sözü yazın. Şarkı sözü:\n- 4 kıta (verse) olsun\n- Her kıta 4 satır olsun\n- Nakarat (chorus) ekleyin\n- Duygusal ve akılda kalıcı olsun\n- Hikayedeki detayları kullanın\n- Türkçe olarak yazın\n- Şarkı formatında olsun (Verse 1, Chorus, Verse 2, vs.)"
-            },
-            "en": {
-                "system": "You are a professional songwriter. You transform users' stories into emotional and high-quality song lyrics.",
-                "user_prefix": "User's Story:",
-                "instructions": "Please write song lyrics based on this story with the theme of {theme}. The lyrics should:\n- Have 4 verses\n- Each verse has 4 lines\n- Include a chorus\n- Be emotional and memorable\n- Use details from the story\n- Be written in English\n- Follow song format (Verse 1, Chorus, Verse 2, etc.)"
-            },
-            "es": {
-                "system": "Eres un compositor profesional. Transformas las historias de los usuarios en letras de canciones emotivas y de alta calidad.",
-                "user_prefix": "Historia del Usuario:",
-                "instructions": "Por favor escribe una letra de canción basada en esta historia con el tema de {theme}. La letra debe:\n- Tener 4 estrofas\n- Cada estrofa tiene 4 líneas\n- Incluir un coro\n- Ser emotiva y memorable\n- Usar detalles de la historia\n- Estar escrita en español\n- Seguir el formato de canción (Estrofa 1, Coro, Estrofa 2, etc.)"
-            },
-            "ar": {
-                "system": "أنت كاتب أغاني محترف. تحول قصص المستخدمين إلى كلمات أغاني عاطفية وعالية الجودة.",
-                "user_prefix": "قصة المستخدم:",
-                "instructions": "يرجى كتابة كلمات أغنية بناءً على هذه القصة بموضوع {theme}. يجب أن تكون الكلمات:\n- تحتوي على 4 مقاطع\n- كل مقطع يحتوي على 4 أسطر\n- تتضمن جوقة\n- عاطفية ولا تُنسى\n- تستخدم تفاصيل من القصة\n- مكتوبة بالعربية\n- تتبع شكل الأغنية"
-            },
-            "de": {
-                "system": "Du bist ein professioneller Songwriter. Du verwandelst die Geschichten der Benutzer in emotionale und hochwertige Songtexte.",
-                "user_prefix": "Geschichte des Benutzers:",
-                "instructions": "Bitte schreibe einen Songtext basierend auf dieser Geschichte mit dem Thema {theme}. Der Text sollte:\n- 4 Strophen haben\n- Jede Strophe hat 4 Zeilen\n- Einen Refrain enthalten\n- Emotional und einprägsam sein\n- Details aus der Geschichte verwenden\n- Auf Deutsch geschrieben sein\n- Dem Songformat folgen"
-            },
-            "fr": {
-                "system": "Tu es un parolier professionnel. Tu transformes les histoires des utilisateurs en paroles de chansons émotionnelles et de haute qualité.",
-                "user_prefix": "Histoire de l'utilisateur:",
-                "instructions": "Veuillez écrire des paroles de chanson basées sur cette histoire avec le thème de {theme}. Les paroles doivent:\n- Avoir 4 couplets\n- Chaque couplet a 4 lignes\n- Inclure un refrain\n- Être émotionnelles et mémorables\n- Utiliser des détails de l'histoire\n- Être écrites en français\n- Suivre le format de chanson"
-            },
-            "ko": {
-                "system": "당신은 전문 작사가입니다. 사용자의 이야기를 감성적이고 고품질의 가사로 변환합니다.",
-                "user_prefix": "사용자 이야기:",
-                "instructions": "{theme} 테마로 이 이야기를 바탕으로 가사를 작성해주세요. 가사는:\n- 4개의 절을 가져야 합니다\n- 각 절은 4줄입니다\n- 후렴구를 포함합니다\n- 감성적이고 기억에 남아야 합니다\n- 이야기의 세부 사항을 사용합니다\n- 한국어로 작성되어야 합니다"
-            },
-            "zh": {
-                "system": "你是一位专业的作词人。你将用户的故事转化为情感丰富、高质量的歌词。",
-                "user_prefix": "用户故事:",
-                "instructions": "请根据这个故事写一首以{theme}为主题的歌词。歌词应该:\n- 有4段\n- 每段4行\n- 包含副歌\n- 富有情感且令人难忘\n- 使用故事中的细节\n- 用中文写作"
-            },
-            "it": {
-                "system": "Sei un paroliere professionista. Trasformi le storie degli utenti in testi di canzoni emotivi e di alta qualità.",
-                "user_prefix": "Storia dell'utente:",
-                "instructions": "Per favore scrivi un testo di canzone basato su questa storia con il tema di {theme}. Il testo dovrebbe:\n- Avere 4 strofe\n- Ogni strofa ha 4 righe\n- Includere un ritornello\n- Essere emotivo e memorabile\n- Usare dettagli dalla storia\n- Essere scritto in italiano"
-            }
+        # Output language mapping
+        output_lang_map = {
+            "tr": "Türkçe", "en": "English", "es": "Spanish", "ar": "Arabic",
+            "de": "German", "fr": "French", "ko": "Korean", "zh": "Chinese", "it": "Italian"
         }
-        
-        # Get language-specific configuration (default to English if not found)
-        lang = language_config.get(request.language, language_config["en"])
-        
-        full_prompt = f"""
-{lang['user_prefix']} "{request.story}"
+        output_lang = output_lang_map.get(request.language, "English")
 
-{lang['instructions'].format(theme=request.theme)}
+        # Language-specific system prompts
+        system_prompts = {
+            "tr": "Sen profesyonel bir şarkı sözü yazarısın. Verilen hikayeden ilham alarak özgün, duygusal ve şiirsel Türkçe şarkı sözleri yazarsın.",
+            "en": "You are a professional songwriter who writes original, emotional, and poetic song lyrics in English based on the given story.",
+            "es": "Eres un compositor profesional que escribe letras de canciones originales, emotivas y poéticas en español basadas en la historia dada.",
+            "de": "Du bist ein professioneller Songwriter, der originelle, emotionale und poetische deutsche Songtexte basierend auf der gegebenen Geschichte schreibt.",
+            "fr": "Tu es un parolier professionnel qui écrit des paroles de chansons originales, émotionnelles et poétiques en français basées sur l'histoire donnée.",
+            "ko": "당신은 주어진 이야기를 바탕으로 독창적이고 감성적이며 시적인 한국어 노래 가사를 쓰는 전문 작사가입니다.",
+            "zh": "你是一位专业的词曲作家，根据给定的故事创作原创、情感丰富且富有诗意的中文歌词。",
+            "it": "Sei un paroliere professionista che scrive testi di canzoni originali, emotivi e poetici in italiano basati sulla storia data.",
+            "ar": "أنت كاتب أغاني محترف يكتب كلمات أغاني أصلية وعاطفية وشعرية باللغة العربية بناءً على القصة المعطاة.",
+        }
 
-Format:
+        system_msg = system_prompts.get(request.language, system_prompts["en"])
+
+        # Build title line for prompt
+        title_line = f'Title: "{request.title}"\n' if request.title else ""
+        
+        # Get theme-specific guidance
+        theme_guidance = THEME_PROMPTS.get(request.theme, {}).get(request.language, "")
+        
+        # Create example to show the format
+        example_format = """
+Example format:
 [Verse 1]
-...
-
-[Chorus] 
-...
-
-[Verse 2]
-...
+Golden beaches calling my name
+Sunset colors paint the sky
+Temple bells echo through the rain
+Where the palm trees touch the sky
 
 [Chorus]
-...
+Take me there, to that distant shore
+Where my heart can finally soar
+In the land of smiles and dreams
+Nothing's ever as it seems
+
+[Verse 2]
+Street food vendors light the night
+Tuk-tuks racing through the crowd
+Ancient wisdom shining bright
+In this place I'm finally found
+
+[Bridge]
+Every moment feels brand new
+Every color, every view
+
+[Final Chorus]
+Take me there, to that distant shore
+Where my heart can finally soar
+In the land of smiles and dreams
+Living out my wildest dreams
 """
 
-        print(f"🎵 Generating lyrics in {request.language} for theme: {request.theme}")
+        full_prompt = f"""You are a professional songwriter. Write original song lyrics in {output_lang}.
+
+{title_line}Story/Inspiration: {request.story}
+Theme: {request.theme}
+
+{example_format}
+
+Now write a COMPLETE ORIGINAL SONG in {output_lang} inspired by the story above. The song should:
+- Be written ENTIRELY in {output_lang} (not English unless requested)
+- Expand the story into vivid, emotional lyrics with imagery and metaphors
+- Include these sections: [Verse 1], [Chorus], [Verse 2], [Bridge], [Final Chorus]
+- Each verse should be 4-6 lines
+- Chorus should be 3-4 catchy lines
+- Bridge should be 2-4 lines
+- Make every line unique and meaningful
+- Use natural rhymes
+- Tell a complete emotional story
+
+IMPORTANT: Write ONLY the song lyrics with section headers. Do NOT copy or repeat the user's story text. Create NEW poetic lyrics inspired by the story's theme and emotion."""
+
+        print(f"🎵 Generating lyrics in {request.language} for theme: {request.theme}, title: {request.title}")
 
         # Call OpenAI API
         response = await openai_client.chat.completions.create(
-            model="gpt-4",
+            model="gpt-4o",
             messages=[
                 {
                     "role": "system", 
-                    "content": lang['system']
+                    "content": system_msg
                 },
                 {
                     "role": "user", 
                     "content": full_prompt
                 }
             ],
-            max_tokens=1500,
-            temperature=0.8
+            max_tokens=2000,
+            temperature=0.78,
+            presence_penalty=0.7,
+            frequency_penalty=0.8
         )
         
         lyrics = response.choices[0].message.content.strip()
@@ -590,9 +671,107 @@ async def generate_tts_fallback(req: MusicRequest):
         print(f"❌ TTS fallback error: {e}")
         raise HTTPException(status_code=500, detail=str(e))
 
+
+# ============================================================================
+# 🎬 INSTAGRAM STORY VIDEO ENDPOINTS
+# ============================================================================
+
+class VideoRequest(BaseModel):
+    audio_url: str
+    song_title: str
+    artist_name: str
+    duration: int
+    genre: str = ""
+    mood: str = ""
+
+class VideoResponse(BaseModel):
+    video_url: str
+    task_id: str
+    status: str
+
+@app.post("/api/create-story-video", response_model=VideoResponse)
+async def create_story_video(request: VideoRequest):
+    """
+    🎬 Instagram Story videosu oluştur
+    
+    Template video + Müzik = Instagram Story Video
+    """
+    try:
+        from services.video_service import video_service
+        
+        print(f"🎬 Creating Instagram Story video for: {request.song_title}")
+        
+        # Task ID oluştur
+        task_id = str(uuid.uuid4())
+        
+        # Video oluştur (async olarak)
+        output_filename = f"story_{task_id}.mp4"
+        output_path = os.path.join("static", "videos", output_filename)
+        
+        # Videos klasörü yoksa oluştur
+        os.makedirs(os.path.dirname(output_path), exist_ok=True)
+        
+        # Video oluştur
+        video_path = video_service.create_instagram_story_video(
+            audio_url=request.audio_url,
+            song_title=request.song_title,
+            artist_name=request.artist_name,
+            duration=request.duration,
+            genre=request.genre,
+            mood=request.mood,
+            output_path=output_path
+        )
+        
+        # Video URL'i oluştur
+        video_url = f"/videos/{output_filename}"
+        
+        print(f"✅ Video created: {video_url}")
+        
+        return VideoResponse(
+            video_url=video_url,
+            task_id=task_id,
+            status="completed"
+        )
+        
+    except FileNotFoundError as e:
+        print(f"❌ Template video not found: {e}")
+        raise HTTPException(
+            status_code=404,
+            detail="Template video not found. Please add story-template.mp4 to backend/assets/"
+        )
+    except Exception as e:
+        print(f"❌ Video creation error: {e}")
+        raise HTTPException(status_code=500, detail=str(e))
+
+
+@app.get("/api/video-status/{task_id}")
+async def get_video_status(task_id: str):
+    """Video oluşturma durumunu kontrol et"""
+    video_filename = f"story_{task_id}.mp4"
+    video_path = os.path.join("static", "videos", video_filename)
+    
+    if os.path.exists(video_path):
+        return {
+            "task_id": task_id,
+            "status": "completed",
+            "video_url": f"/videos/{video_filename}"
+        }
+    else:
+        return {
+            "task_id": task_id,
+            "status": "processing"
+        }
+
+
+# Mount videos directory
+os.makedirs("static/videos", exist_ok=True)
+app.mount("/videos", StaticFiles(directory="static/videos"), name="videos")
+
+
 if __name__ == "__main__":
     print("🎵 Starting Musician Test Server...")
     print("📖 Visit http://localhost:8000/docs for API documentation")
+    print("🎬 Instagram Story Video feature enabled!")
     
     uvicorn.run(
         app,

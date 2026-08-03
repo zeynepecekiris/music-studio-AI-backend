@@ -29,7 +29,8 @@ async def generate_lyrics(request: LyricsGenerationRequest):
         lyrics_response = await openai_service.generate_lyrics(
             story=request.story,
             theme=request.theme,
-            language=request.language
+            language=request.language,
+            title=request.title
         )
         
         return lyrics_response

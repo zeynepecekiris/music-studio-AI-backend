@@ -93,6 +93,7 @@ class Instrument(str, Enum):
 # Request Models
 class LyricsGenerationRequest(BaseModel):
     story: str = Field(..., min_length=10, max_length=2000, description="User's story")
+    title: Optional[str] = Field(None, max_length=200, description="Song title")
     theme: MusicTheme = Field(..., description="Music theme")
     user_id: Optional[str] = Field(None, description="User ID for tracking")
     language: str = Field("tr", description="Language code (tr, en, es)")
