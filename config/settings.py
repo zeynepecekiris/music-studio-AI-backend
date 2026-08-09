@@ -52,6 +52,11 @@ class Settings(BaseSettings):
     # Rate limiting
     RATE_LIMIT_PER_MINUTE: int = int(os.getenv("RATE_LIMIT_PER_MINUTE", "60"))
 
+    # Email (Resend)
+    RESEND_API_KEY: str = os.getenv("RESEND_API_KEY", "")
+    ADMIN_EMAIL: str = os.getenv("ADMIN_EMAIL", "zeynep.ece933@gmail.com")
+    FROM_EMAIL: str = os.getenv("FROM_EMAIL", "onboarding@resend.dev")
+
     class Config:
         env_file = ".env"
 

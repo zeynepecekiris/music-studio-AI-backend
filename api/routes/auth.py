@@ -1,10 +1,11 @@
-from fastapi import APIRouter, Depends, HTTPException, status
+from fastapi import APIRouter, BackgroundTasks, Depends, HTTPException, status
 from sqlalchemy.orm import Session
 from pydantic import BaseModel, EmailStr, Field
 from typing import Optional
 
 from db.session import get_db
 from db.models import User
+from services.email_service import send_new_user_notification
 from services.auth_service import (
     hash_password, verify_password,
     create_access_token, create_refresh_token,
@@ -49,7 +50,7 @@ def _user_dict(user: User) -> dict:
 
 
 @router.post("/register", response_model=TokenResponse, status_code=status.HTTP_201_CREATED)
-def register(req: RegisterRequest, db: Session = Depends(get_db)):
+def register(req: RegisterRequest, background_tasks: BackgroundTasks, db: Session = Depends(get_db)):
     if db.query(User).filter(User.email == req.email).first():
         raise HTTPException(status_code=400, detail="Email already registered")
     if db.query(User).filter(User.username == req.username).first():
@@ -64,6 +65,8 @@ def register(req: RegisterRequest, db: Session = Depends(get_db)):
     db.add(user)
     db.commit()
     db.refresh(user)
+
+    background_tasks.add_task(send_new_user_notification, user.username, user.email)
 
     return TokenResponse(
         access_token=create_access_token(user.id),

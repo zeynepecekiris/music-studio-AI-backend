@@ -34,3 +34,8 @@ MAX_FILE_SIZE=50000000
 
 # Rate Limiting
 RATE_LIMIT_PER_MINUTE=60
+
+# Email Notifications (Resend - https://resend.com)
+RESEND_API_KEY=your_resend_api_key_here
+ADMIN_EMAIL=zeynep.ece933@gmail.com
+FROM_EMAIL=onboarding@resend.dev
