@@ -1,9 +1,9 @@
 import random
 import string
-import urllib.request
-import json
 import os
 from datetime import datetime, timedelta
+
+import requests
 
 # {email: {"code": "123456", "expires_at": datetime}}
 _codes: dict = {}
@@ -47,20 +47,15 @@ def create_and_send_code(email: str) -> bool:
     }
 
     try:
-        data = json.dumps(payload).encode("utf-8")
-        req = urllib.request.Request(
+        response = requests.post(
             "https://api.resend.com/emails",
-            data=data,
-            headers={
-                "Authorization": f"Bearer {resend_api_key}",
-                "Content-Type": "application/json",
-                "User-Agent": "MusicStudioAI/1.0",
-            },
-            method="POST",
+            json=payload,
+            headers={"Authorization": f"Bearer {resend_api_key}"},
+            timeout=10,
         )
-        with urllib.request.urlopen(req, timeout=10) as response:
-            print(f"[verification] Code sent to {email} → {response.status}")
-            return True
+        response.raise_for_status()
+        print(f"[verification] Code sent to {email} → {response.status_code}")
+        return True
     except Exception as e:
         print(f"[verification] Failed to send code to {email}: {e}")
         return False

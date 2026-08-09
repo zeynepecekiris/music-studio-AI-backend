@@ -1,7 +1,7 @@
 import os
-import urllib.request
-import json
 from datetime import datetime
+
+import requests
 
 
 def send_new_user_notification(username: str, email: str):
@@ -45,18 +45,13 @@ def send_new_user_notification(username: str, email: str):
     }
 
     try:
-        data = json.dumps(payload).encode("utf-8")
-        req = urllib.request.Request(
+        response = requests.post(
             "https://api.resend.com/emails",
-            data=data,
-            headers={
-                "Authorization": f"Bearer {resend_api_key}",
-                "Content-Type": "application/json",
-                "User-Agent": "MusicStudioAI/1.0",
-            },
-            method="POST",
+            json=payload,
+            headers={"Authorization": f"Bearer {resend_api_key}"},
+            timeout=10,
         )
-        with urllib.request.urlopen(req, timeout=10) as response:
-            print(f"[email_service] Notification sent for @{username} → {response.status}")
+        response.raise_for_status()
+        print(f"[email_service] Notification sent for @{username} → {response.status_code}")
     except Exception as e:
         print(f"[email_service] Failed to send notification: {e}")
