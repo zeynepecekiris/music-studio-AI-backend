@@ -6,12 +6,12 @@ from typing import Optional
 from db.session import get_db
 from db.models import User
 from services.email_service import send_new_user_notification
-from services.verification_service import create_and_send_code, verify_code
 from services.auth_service import (
     hash_password, verify_password,
     create_access_token, create_refresh_token,
     get_current_user, _decode_token,
 )
+from services.verification_service import create_and_send_code, verify_code
 
 router = APIRouter(prefix="/auth", tags=["auth"])
 
