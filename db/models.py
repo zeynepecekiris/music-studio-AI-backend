@@ -14,6 +14,17 @@ def _uuid():
     return str(uuid.uuid4())
 
 
+class VerificationCode(Base):
+    __tablename__ = "verification_codes"
+
+    id = Column(String, primary_key=True, default=_uuid)
+    email = Column(String, nullable=False, index=True)
+    code = Column(String, nullable=False)
+    type = Column(String, nullable=False, default="email_verification")
+    expires_at = Column(DateTime, nullable=False)
+    created_at = Column(DateTime, default=datetime.utcnow)
+
+
 class FriendshipStatus(str, enum.Enum):
     pending = "pending"
     accepted = "accepted"

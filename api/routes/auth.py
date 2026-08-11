@@ -1,6 +1,6 @@
 from fastapi import APIRouter, BackgroundTasks, Depends, HTTPException, status
 from sqlalchemy.orm import Session
-from pydantic import BaseModel, EmailStr, Field
+from pydantic import BaseModel, Field
 from typing import Optional
 
 from db.session import get_db
@@ -18,6 +18,7 @@ router = APIRouter(prefix="/auth", tags=["auth"])
 
 class SendCodeRequest(BaseModel):
     email: str
+    type: str = "email_verification"
 
 
 class RegisterRequest(BaseModel):
@@ -44,6 +45,16 @@ class RefreshRequest(BaseModel):
     refresh_token: str
 
 
+class ForgotPasswordRequest(BaseModel):
+    email: str
+
+
+class ResetPasswordRequest(BaseModel):
+    email: str
+    code: str = Field(..., min_length=6, max_length=6)
+    new_password: str = Field(..., min_length=6)
+
+
 def _user_dict(user: User) -> dict:
     return {
         "id": user.id,
@@ -57,17 +68,16 @@ def _user_dict(user: User) -> dict:
 
 @router.post("/send-verification-code", status_code=200)
 def send_verification_code(req: SendCodeRequest, db: Session = Depends(get_db)):
-    if db.query(User).filter(User.email == req.email).first():
-        raise HTTPException(status_code=400, detail="Email already registered")
-    success = create_and_send_code(req.email)
-    if not success:
-        raise HTTPException(status_code=500, detail="Failed to send verification code")
+    if req.type == "email_verification":
+        if db.query(User).filter(User.email == req.email).first():
+            raise HTTPException(status_code=400, detail="Email already registered")
+    create_and_send_code(req.email, db, code_type=req.type)
     return {"message": "Verification code sent"}
 
 
 @router.post("/register", response_model=TokenResponse, status_code=status.HTTP_201_CREATED)
 def register(req: RegisterRequest, background_tasks: BackgroundTasks, db: Session = Depends(get_db)):
-    if not verify_code(req.email, req.verification_code):
+    if not verify_code(req.email, req.verification_code, db, code_type="email_verification"):
         raise HTTPException(status_code=400, detail="Invalid or expired verification code")
     if db.query(User).filter(User.email == req.email).first():
         raise HTTPException(status_code=400, detail="Email already registered")
@@ -106,6 +116,27 @@ def login(req: LoginRequest, db: Session = Depends(get_db)):
     )
 
 
+@router.post("/forgot-password", status_code=200)
+def forgot_password(req: ForgotPasswordRequest, db: Session = Depends(get_db)):
+    user = db.query(User).filter(User.email == req.email).first()
+    if not user:
+        return {"message": "If this email is registered, a reset code has been sent"}
+    create_and_send_code(req.email, db, code_type="password_reset")
+    return {"message": "If this email is registered, a reset code has been sent"}
+
+
+@router.post("/reset-password", status_code=200)
+def reset_password(req: ResetPasswordRequest, db: Session = Depends(get_db)):
+    if not verify_code(req.email, req.code, db, code_type="password_reset"):
+        raise HTTPException(status_code=400, detail="Invalid or expired reset code")
+    user = db.query(User).filter(User.email == req.email).first()
+    if not user:
+        raise HTTPException(status_code=404, detail="User not found")
+    user.hashed_password = hash_password(req.new_password)
+    db.commit()
+    return {"message": "Password reset successful"}
+
+
 @router.post("/refresh", response_model=TokenResponse)
 def refresh(req: RefreshRequest, db: Session = Depends(get_db)):
     user_id = _decode_token(req.refresh_token)
@@ -137,21 +168,16 @@ def delete_account(
     db: Session = Depends(get_db),
 ):
     from db.models import Song, Friendship, Conversation, Message
-    # Mesajlar
     db.query(Message).filter(Message.sender_id == current_user.id).delete()
-    # Konuşmalar
     db.query(Conversation).filter(
         (Conversation.user_a_id == current_user.id) |
         (Conversation.user_b_id == current_user.id)
     ).delete()
-    # Arkadaşlıklar
     db.query(Friendship).filter(
         (Friendship.requester_id == current_user.id) |
         (Friendship.addressee_id == current_user.id)
     ).delete()
-    # Şarkılar
     db.query(Song).filter(Song.user_id == current_user.id).delete()
-    # Kullanıcı
     db.delete(current_user)
     db.commit()
     return {"message": "Account deleted"}

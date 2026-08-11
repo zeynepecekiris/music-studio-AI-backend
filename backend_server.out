@@ -1,0 +1,66 @@
+INFO:     Will watch for changes in these directories: ['/Users/zece/Desktop/projects/Musician/backend']
+INFO:     Uvicorn running on http://0.0.0.0:8000 (Press CTRL+C to quit)
+INFO:     Started reloader process [29282] using WatchFiles
+🎵 Starting Musician API Server...
+🌐 Host: 0.0.0.0
+🔌 Port: 8000
+🔧 Debug: True
+📁 Upload Dir: ./uploads
+✅ OpenAI API key configured
+✅ ElevenLabs API key configured
+
+🚀 Server starting...
+📖 API Documentation: http://0.0.0.0:8000/docs
+🔍 ReDoc: http://0.0.0.0:8000/redoc
+INFO:     Started server process [29311]
+INFO:     Waiting for application startup.
+INFO:     Application startup complete.
+INFO:     127.0.0.1:55625 - "GET /api/health HTTP/1.1" 200 OK
+WARNING:  WatchFiles detected changes in 'services/video_service.py'. Reloading...
+INFO:     Shutting down
+INFO:     Waiting for application shutdown.
+INFO:     Application shutdown complete.
+INFO:     Finished server process [29311]
+INFO:     Started server process [36902]
+INFO:     Waiting for application startup.
+INFO:     Application startup complete.
+WARNING:  WatchFiles detected changes in 'test_server.py'. Reloading...
+INFO:     Shutting down
+INFO:     Waiting for application shutdown.
+INFO:     Application shutdown complete.
+INFO:     Finished server process [36902]
+INFO:     Started server process [37466]
+INFO:     Waiting for application startup.
+INFO:     Application startup complete.
+WARNING:  WatchFiles detected changes in 'services/video_service.py', 'test_server.py'. Reloading...
+INFO:     Shutting down
+INFO:     Waiting for application shutdown.
+INFO:     Application shutdown complete.
+INFO:     Finished server process [37466]
+INFO:     Started server process [41793]
+INFO:     Waiting for application startup.
+INFO:     Application startup complete.
+WARNING:  WatchFiles detected changes in 'services/video_service.py'. Reloading...
+INFO:     Shutting down
+INFO:     Waiting for application shutdown.
+INFO:     Application shutdown complete.
+INFO:     Finished server process [41793]
+INFO:     Started server process [10424]
+INFO:     Waiting for application startup.
+INFO:     Application startup complete.
+WARNING:  WatchFiles detected changes in 'services/video_service.py'. Reloading...
+INFO:     Shutting down
+INFO:     Waiting for application shutdown.
+INFO:     Application shutdown complete.
+INFO:     Finished server process [10424]
+INFO:     Started server process [12242]
+INFO:     Waiting for application startup.
+INFO:     Application startup complete.
+WARNING:  WatchFiles detected changes in 'services/video_service.py'. Reloading...
+INFO:     Shutting down
+INFO:     Waiting for application shutdown.
+INFO:     Application shutdown complete.
+INFO:     Finished server process [12242]
+INFO:     Started server process [20117]
+INFO:     Waiting for application startup.
+INFO:     Application startup complete.
