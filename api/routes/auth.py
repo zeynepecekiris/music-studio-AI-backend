@@ -16,16 +16,10 @@ from services.verification_service import create_and_send_code, verify_code
 router = APIRouter(prefix="/auth", tags=["auth"])
 
 
-class SendCodeRequest(BaseModel):
-    email: str
-    type: str = "email_verification"
-
-
 class RegisterRequest(BaseModel):
     email: str = Field(..., description="Email address")
     username: str = Field(..., min_length=3, max_length=30)
     password: str = Field(..., min_length=6)
-    verification_code: str = Field(..., min_length=6, max_length=6)
     bio: Optional[str] = Field(None, max_length=300)
 
 
@@ -66,19 +60,8 @@ def _user_dict(user: User) -> dict:
     }
 
 
-@router.post("/send-verification-code", status_code=200)
-def send_verification_code(req: SendCodeRequest, db: Session = Depends(get_db)):
-    if req.type == "email_verification":
-        if db.query(User).filter(User.email == req.email).first():
-            raise HTTPException(status_code=400, detail="Email already registered")
-    create_and_send_code(req.email, db, code_type=req.type)
-    return {"message": "Verification code sent"}
-
-
 @router.post("/register", response_model=TokenResponse, status_code=status.HTTP_201_CREATED)
 def register(req: RegisterRequest, background_tasks: BackgroundTasks, db: Session = Depends(get_db)):
-    if not verify_code(req.email, req.verification_code, db, code_type="email_verification"):
-        raise HTTPException(status_code=400, detail="Invalid or expired verification code")
     if db.query(User).filter(User.email == req.email).first():
         raise HTTPException(status_code=400, detail="Email already registered")
     if db.query(User).filter(User.username == req.username).first():
