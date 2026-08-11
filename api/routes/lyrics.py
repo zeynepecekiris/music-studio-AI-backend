@@ -1,19 +1,21 @@
-from fastapi import APIRouter, HTTPException, BackgroundTasks
+from fastapi import APIRouter, HTTPException, BackgroundTasks, Depends
 from fastapi.responses import JSONResponse
 import asyncio
 from typing import Optional
 
 from models.schemas import (
-    LyricsGenerationRequest, 
-    LyricsResponse, 
+    LyricsGenerationRequest,
+    LyricsResponse,
     ErrorResponse
 )
 from services.openai_service import openai_service
+from services.auth_service import get_current_user
+from db.models import User
 
 router = APIRouter(prefix="/api/lyrics", tags=["lyrics"])
 
 @router.post("/generate", response_model=LyricsResponse)
-async def generate_lyrics(request: LyricsGenerationRequest):
+async def generate_lyrics(request: LyricsGenerationRequest, current_user: User = Depends(get_current_user)):
     """
     Generate song lyrics based on user story and theme
     """
@@ -45,7 +47,8 @@ async def generate_lyrics(request: LyricsGenerationRequest):
 async def improve_lyrics(
     original_lyrics: str,
     story: str,
-    theme: str
+    theme: str,
+    current_user: User = Depends(get_current_user)
 ):
     """
     Improve existing lyrics based on feedback
@@ -79,7 +82,7 @@ async def improve_lyrics(
         )
 
 @router.post("/title", response_model=dict)
-async def generate_title(lyrics: str, theme: str):
+async def generate_title(lyrics: str, theme: str, current_user: User = Depends(get_current_user)):
     """
     Generate a catchy title for the song
     """

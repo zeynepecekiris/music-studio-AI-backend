@@ -1,4 +1,4 @@
-from fastapi import APIRouter, HTTPException, BackgroundTasks, UploadFile, File
+from fastapi import APIRouter, HTTPException, BackgroundTasks, UploadFile, File, Depends
 from fastapi.responses import FileResponse, JSONResponse
 from typing import List, Optional
 import os
@@ -10,6 +10,8 @@ from models.schemas import (
     ErrorResponse
 )
 from services.elevenlabs_service import elevenlabs_service, PromptSafetyError
+from services.auth_service import get_current_user
+from db.models import User
 from config.settings import settings
 
 router = APIRouter(prefix="/api/music", tags=["music"])
@@ -18,7 +20,7 @@ router = APIRouter(prefix="/api/music", tags=["music"])
 processing_tasks = {}
 
 @router.post("/generate", response_model=MusicGenerationResponse)
-async def generate_music(request: MusicGenerationRequest):
+async def generate_music(request: MusicGenerationRequest, current_user: User = Depends(get_current_user)):
     """
     Generate music with vocals based on lyrics and preferences
     """
@@ -61,7 +63,8 @@ async def generate_music(request: MusicGenerationRequest):
 @router.post("/generate-async", response_model=dict)
 async def generate_music_async(
     request: MusicGenerationRequest,
-    background_tasks: BackgroundTasks
+    background_tasks: BackgroundTasks,
+    current_user: User = Depends(get_current_user)
 ):
     """
     Generate music asynchronously (for long processing)
