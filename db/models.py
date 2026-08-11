@@ -72,7 +72,7 @@ class Friendship(Base):
     id = Column(String, primary_key=True, default=_uuid)
     requester_id = Column(String, ForeignKey("users.id"), nullable=False, index=True)
     addressee_id = Column(String, ForeignKey("users.id"), nullable=False, index=True)
-    status = Column(SAEnum(FriendshipStatus), default=FriendshipStatus.pending, nullable=False)
+    status = Column(SAEnum(FriendshipStatus, name="friendshipstatus", create_type=False), default=FriendshipStatus.pending, nullable=False)
     created_at = Column(DateTime, default=datetime.utcnow)
 
     requester = relationship("User", foreign_keys=[requester_id], back_populates="sent_requests")
