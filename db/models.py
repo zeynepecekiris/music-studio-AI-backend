@@ -1,9 +1,10 @@
 import uuid
 from datetime import datetime
 from sqlalchemy import (
-    Column, String, Boolean, DateTime, Integer, Text,
+    Column, String, Boolean, DateTime, Integer, Text, JSON,
     ForeignKey, Enum as SAEnum
 )
+from sqlalchemy.dialects.postgresql import ARRAY
 from sqlalchemy.orm import relationship
 import enum
 
@@ -38,9 +39,13 @@ class User(Base):
     email = Column(String, unique=True, index=True, nullable=False)
     username = Column(String, unique=True, index=True, nullable=False)
     hashed_password = Column(String, nullable=False)
+    display_name = Column(String(50), nullable=True)
     bio = Column(Text, nullable=True)
     avatar_url = Column(String, nullable=True)
+    # TEXT[] on Postgres, JSON list on local SQLite
+    favorite_genres = Column(ARRAY(String).with_variant(JSON, "sqlite"), nullable=False, default=list)
     created_at = Column(DateTime, default=datetime.utcnow)
+    updated_at = Column(DateTime, nullable=True, onupdate=datetime.utcnow)
 
     songs = relationship("Song", back_populates="user", foreign_keys="Song.user_id")
     sent_requests = relationship("Friendship", foreign_keys="Friendship.requester_id", back_populates="requester")
@@ -86,6 +91,8 @@ class Conversation(Base):
     user_a_id = Column(String, ForeignKey("users.id"), nullable=False, index=True)
     user_b_id = Column(String, ForeignKey("users.id"), nullable=False, index=True)
     created_at = Column(DateTime, default=datetime.utcnow)
+    updated_at = Column(DateTime, nullable=True)
+    last_message_at = Column(DateTime, nullable=True, default=datetime.utcnow)
 
     messages = relationship("Message", back_populates="conversation", order_by="Message.created_at")
     user_a = relationship("User", foreign_keys=[user_a_id])
@@ -101,7 +108,51 @@ class Message(Base):
     content = Column(Text, nullable=True)
     song_id = Column(String, ForeignKey("songs.id"), nullable=True)
     created_at = Column(DateTime, default=datetime.utcnow)
+    read_at = Column(DateTime, nullable=True)
 
     conversation = relationship("Conversation", back_populates="messages")
     sender = relationship("User", foreign_keys=[sender_id])
     song = relationship("Song", back_populates="messages")
+
+
+# Tables below are created by db/migrations/*.sql; models mirror them.
+
+class WallPost(Base):
+    __tablename__ = "wall_posts"
+
+    id = Column(String, primary_key=True, default=_uuid)
+    wall_owner_id = Column(String, ForeignKey("users.id", ondelete="CASCADE"), nullable=False, index=True)
+    author_id = Column(String, ForeignKey("users.id", ondelete="CASCADE"), nullable=False, index=True)
+    content = Column(Text, nullable=True)
+    song_id = Column(String, ForeignKey("songs.id", ondelete="SET NULL"), nullable=True)
+    created_at = Column(DateTime, default=datetime.utcnow, nullable=False)
+    deleted_at = Column(DateTime, nullable=True)
+
+    wall_owner = relationship("User", foreign_keys=[wall_owner_id])
+    author = relationship("User", foreign_keys=[author_id])
+    song = relationship("Song")
+    mentions = relationship("PostMention", back_populates="post", cascade="all, delete-orphan")
+
+
+class PostMention(Base):
+    __tablename__ = "post_mentions"
+
+    id = Column(String, primary_key=True, default=_uuid)
+    post_id = Column(String, ForeignKey("wall_posts.id", ondelete="CASCADE"), nullable=False)
+    mentioned_user_id = Column(String, ForeignKey("users.id", ondelete="CASCADE"), nullable=False, index=True)
+    created_at = Column(DateTime, default=datetime.utcnow, nullable=False)
+
+    post = relationship("WallPost", back_populates="mentions")
+    mentioned_user = relationship("User")
+
+
+class AdReward(Base):
+    __tablename__ = "ad_rewards"
+
+    id = Column(String, primary_key=True, default=_uuid)
+    user_id = Column(String, ForeignKey("users.id", ondelete="CASCADE"), nullable=False)
+    reward_type = Column(String(32), nullable=False)  # 'lyrics' | 'add_friend'
+    transaction_id = Column(String, unique=True, nullable=True)
+    verified = Column(Boolean, default=False, nullable=False)
+    consumed_at = Column(DateTime, nullable=True)
+    created_at = Column(DateTime, default=datetime.utcnow, nullable=False)
