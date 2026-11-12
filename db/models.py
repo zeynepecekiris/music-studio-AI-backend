@@ -1,5 +1,5 @@
 import uuid
-from datetime import datetime
+from datetime import datetime, timedelta
 from sqlalchemy import (
     Column, String, Boolean, DateTime, Integer, Text, JSON,
     ForeignKey, Enum as SAEnum
@@ -169,3 +169,31 @@ class LyricsDraft(Base):
     lyrics = Column(Text, nullable=False)
     created_at = Column(DateTime, default=datetime.utcnow, nullable=False)
     updated_at = Column(DateTime, default=datetime.utcnow, nullable=False)
+
+
+def _story_expiry():
+    return datetime.utcnow() + timedelta(hours=24)
+
+
+class MusicStory(Base):
+    __tablename__ = "music_stories"
+
+    id = Column(String, primary_key=True, default=_uuid)
+    user_id = Column(String, ForeignKey("users.id", ondelete="CASCADE"), nullable=False, index=True)
+    song_id = Column(String, ForeignKey("songs.id", ondelete="CASCADE"), nullable=False)
+    caption = Column(String(150), nullable=True)
+    style = Column(String(32), nullable=False, default="neon")
+    created_at = Column(DateTime, default=datetime.utcnow, nullable=False)
+    expires_at = Column(DateTime, default=_story_expiry, nullable=False, index=True)
+
+    user = relationship("User")
+    song = relationship("Song")
+
+
+class StoryView(Base):
+    __tablename__ = "story_views"
+
+    story_id = Column(String, ForeignKey("music_stories.id", ondelete="CASCADE"), primary_key=True)
+    viewer_id = Column(String, ForeignKey("users.id", ondelete="CASCADE"), primary_key=True, index=True)
+    viewed_at = Column(DateTime, default=datetime.utcnow, nullable=False)
+
