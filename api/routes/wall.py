@@ -46,6 +46,8 @@ def _mini_user(u: User) -> dict:
         "username": u.username,
         "display_name": u.display_name,
         "avatar_url": u.avatar_url,
+        "country_code": u.country_code,
+        "city": u.city,
     }
 
 
