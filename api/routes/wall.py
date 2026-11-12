@@ -5,7 +5,7 @@ Rules (the API enforces them; the app only hides buttons):
 - Anyone can read any wall (profiles are public, see songs.can_view_profile).
 - You can always post on your own wall; on someone else's only if you're friends.
 - Text up to 280 characters, a song of your own, or both.
-- Only your friends can be mentioned.
+- Anyone can be mentioned (found by searching their name).
 - The author or the wall owner can delete a post (soft delete).
 """
 from datetime import datetime
@@ -138,9 +138,10 @@ def create_post(
             raise HTTPException(status_code=404, detail="Song not found or not yours")
 
     mention_ids = list(dict.fromkeys(req.mention_ids))
-    not_friends = [m for m in mention_ids if m not in my_friends]
-    if not_friends:
-        raise HTTPException(status_code=400, detail="You can only mention your friends")
+    if mention_ids:
+        found = {uid for (uid,) in db.query(User.id).filter(User.id.in_(mention_ids))}
+        if len(found) != len(mention_ids):
+            raise HTTPException(status_code=400, detail="Mentioned user not found")
 
     post = WallPost(
         wall_owner_id=user_id,
