@@ -9,6 +9,7 @@ from db.models import User, Song, Friendship, FriendshipStatus, WallPost
 from services.auth_service import get_current_user, get_optional_user
 from services.elevenlabs_service import elevenlabs_service, PromptSafetyError
 from services.storage_service import upload_audio
+from services.world import world_fields, city_key
 from models.schemas import MusicGenerationRequest
 
 router = APIRouter(tags=["songs"])
@@ -50,6 +51,7 @@ def _user_profile_dict(
         "bio": user.bio,
         "avatar_url": user.avatar_url,
         "favorite_genres": list(user.favorite_genres or []),
+        **world_fields(user),
         "created_at": user.created_at.isoformat(),
         "song_count": song_count,
         "friendship_status": friendship_status,
@@ -329,6 +331,8 @@ def search_users(
             "display_name": u.display_name,
             "bio": u.bio,
             "avatar_url": u.avatar_url,
+            "country_code": u.country_code,
+            "city": u.city,
             "friendship_status": friendship_map.get(u.id, (None, None))[0],
             "friendship_id": friendship_map.get(u.id, (None, None))[1],
             "is_self": current_user.id == u.id if current_user else False,
@@ -341,16 +345,40 @@ def search_users(
 def list_users(
     page: int = Query(1, ge=1),
     per_page: int = Query(20, ge=1, le=50),
+    scope: Optional[str] = Query(None, pattern="^(city|country|world)$"),
     current_user: Optional[User] = Depends(get_optional_user),
     db: Session = Depends(get_db),
 ):
-    """All registered users with their latest song and friendship status."""
+    """All registered users with their latest song and friendship status.
+
+    scope (needs a signed-in user with a country):
+      city    – same country and city as me
+      country – same country as me
+      world   – people from other countries (shuffled)
+    """
     offset = (page - 1) * per_page
 
     query = db.query(User)
+    order = User.created_at.desc()
+    if scope:
+        if not current_user:
+            return {"items": [], "total": 0, "page": page, "per_page": per_page, "has_next": False}
+        query = query.filter(User.id != current_user.id)
+        mine = current_user.country_code
+        if scope == "world":
+            query = query.filter(User.country_code.isnot(None))
+            if mine:
+                query = query.filter(User.country_code != mine)
+            order = func.random()
+        elif not mine or (scope == "city" and not current_user.city):
+            return {"items": [], "total": 0, "page": page, "per_page": per_page, "has_next": False}
+        else:
+            query = query.filter(User.country_code == mine)
+            if scope == "city":
+                query = query.filter(User.city_key == city_key(current_user.city))
 
     total = query.count()
-    users = query.order_by(User.created_at.desc()).offset(offset).limit(per_page).all()
+    users = query.order_by(order).offset(offset).limit(per_page).all()
 
     # Friendship statuses for current user
     friendship_map = {}
@@ -424,6 +452,9 @@ def list_users(
             "friendship_id": friendship_map.get(u.id, (None, None))[1],
             "latest_song": _song_dict(latest_song, include_user=False) if latest_song else None,
             "favorite_genres": genres,
+            "country_code": u.country_code,
+            "city": u.city,
+            "same_country": bool(current_user and current_user.country_code and u.country_code == current_user.country_code),
             "song_count": song_count,
             "last_active_at": max(activity).isoformat() if activity else u.created_at.isoformat(),
             "mutual_friend_count": len(my_friends & page_friends.get(u.id, set())) if current_user else 0,

@@ -1,3 +1,4 @@
+import re
 import uuid
 from datetime import datetime
 
@@ -54,6 +55,9 @@ class ResetPasswordRequest(BaseModel):
     new_password: str = Field(..., min_length=6)
 
 
+from services.world import world_fields, city_key
+
+
 def _user_dict(user: User) -> dict:
     return {
         "id": user.id,
@@ -63,6 +67,7 @@ def _user_dict(user: User) -> dict:
         "bio": user.bio,
         "avatar_url": user.avatar_url,
         "favorite_genres": list(user.favorite_genres or []),
+        **world_fields(user),
         "created_at": user.created_at.isoformat(),
     }
 
@@ -80,8 +85,42 @@ class UpdateProfileRequest(BaseModel):
     display_name: Optional[str] = Field(None, max_length=50)
     bio: Optional[str] = Field(None, max_length=300)
     favorite_genres: Optional[List[str]] = Field(None, max_length=10)
+    country_code: Optional[str] = Field(None, max_length=2)
+    city: Optional[str] = Field(None, max_length=60)
+    visited_countries: Optional[List[str]] = Field(None, max_length=250)
+    languages: Optional[List[str]] = Field(None, max_length=12)
 
-    @field_validator("display_name", "bio")
+    @field_validator("country_code")
+    @classmethod
+    def _country(cls, v):
+        if v in (None, ""):
+            return None
+        v = v.strip().upper()
+        if not re.fullmatch(r"[A-Z]{2}", v):
+            raise ValueError("country_code must be a 2-letter ISO code")
+        return v
+
+    @field_validator("visited_countries")
+    @classmethod
+    def _countries(cls, v):
+        if v is None:
+            return v
+        out = [c.strip().upper() for c in v]
+        if any(not re.fullmatch(r"[A-Z]{2}", c) for c in out):
+            raise ValueError("visited_countries must be 2-letter ISO codes")
+        return list(dict.fromkeys(out))
+
+    @field_validator("languages")
+    @classmethod
+    def _languages(cls, v):
+        if v is None:
+            return v
+        out = [c.strip().lower() for c in v]
+        if any(not re.fullmatch(r"[a-z]{2,3}", c) for c in out):
+            raise ValueError("languages must be ISO 639 codes")
+        return list(dict.fromkeys(out))
+
+    @field_validator("display_name", "bio", "city")
     @classmethod
     def _strip(cls, v):
         return v.strip() if isinstance(v, str) else v
@@ -201,6 +240,15 @@ def update_me(
         current_user.bio = fields["bio"] or None
     if "favorite_genres" in fields:
         current_user.favorite_genres = fields["favorite_genres"] or []
+    if "country_code" in fields:
+        current_user.country_code = fields["country_code"]
+    if "city" in fields:
+        current_user.city = fields["city"] or None
+        current_user.city_key = city_key(current_user.city)
+    if "visited_countries" in fields:
+        current_user.visited_countries = fields["visited_countries"] or []
+    if "languages" in fields:
+        current_user.languages = fields["languages"] or []
     current_user.updated_at = datetime.utcnow()
     db.commit()
     db.refresh(current_user)

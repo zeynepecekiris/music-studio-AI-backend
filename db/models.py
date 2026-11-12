@@ -44,6 +44,12 @@ class User(Base):
     avatar_url = Column(String, nullable=True)
     # TEXT[] on Postgres, JSON list on local SQLite
     favorite_genres = Column(ARRAY(String).with_variant(JSON, "sqlite"), nullable=False, default=list)
+    # International profile: ISO 3166-1 alpha-2 codes, ISO 639-1 language codes
+    country_code = Column(String(2), nullable=True, index=True)
+    city = Column(String(60), nullable=True)
+    city_key = Column(String(60), nullable=True)  # services.world.city_key(city)
+    visited_countries = Column(ARRAY(String).with_variant(JSON, "sqlite"), nullable=False, default=list)
+    languages = Column(ARRAY(String).with_variant(JSON, "sqlite"), nullable=False, default=list)
     created_at = Column(DateTime, default=datetime.utcnow)
     updated_at = Column(DateTime, nullable=True, onupdate=datetime.utcnow)
 
