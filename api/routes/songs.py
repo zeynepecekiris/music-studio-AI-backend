@@ -5,7 +5,7 @@ from sqlalchemy import func, select
 from sqlalchemy.orm import Session, joinedload
 
 from db.session import get_db
-from db.models import User, Song, Friendship, FriendshipStatus
+from db.models import User, Song, Friendship, FriendshipStatus, WallPost
 from services.auth_service import get_current_user, get_optional_user
 from services.elevenlabs_service import elevenlabs_service, PromptSafetyError
 from services.storage_service import upload_audio
@@ -159,6 +159,50 @@ def get_feed(
     }
 
 
+def can_view_profile(viewer: Optional[User], owner: User) -> bool:
+    """Every profile is public for now. Private profiles plug in here later."""
+    return True
+
+
+def _friend_count(db: Session, user_id: str) -> int:
+    return db.query(func.count(Friendship.id)).filter(
+        Friendship.status == FriendshipStatus.accepted,
+        (Friendship.requester_id == user_id) | (Friendship.addressee_id == user_id),
+    ).scalar() or 0
+
+
+def _build_profile(db: Session, user: User, current_user: Optional[User]) -> dict:
+    if not can_view_profile(current_user, user):
+        raise HTTPException(status_code=403, detail="This profile is private")
+
+    songs_query = db.query(Song).filter(Song.user_id == user.id)
+    if not current_user or current_user.id != user.id:
+        songs_query = songs_query.filter(Song.is_public == True)
+    songs = songs_query.order_by(Song.created_at.desc()).all()
+
+    friendship_status = None
+    friendship_id = None
+    if current_user and current_user.id != user.id:
+        friendship = db.query(Friendship).filter(
+            ((Friendship.requester_id == current_user.id) & (Friendship.addressee_id == user.id)) |
+            ((Friendship.requester_id == user.id) & (Friendship.addressee_id == current_user.id))
+        ).first()
+        if friendship:
+            friendship_id = friendship.id
+            friendship_status = friendship.status.value
+            if friendship.status == FriendshipStatus.pending and friendship.requester_id == user.id:
+                friendship_status = "received_request"
+
+    profile = _user_profile_dict(user, len(songs), friendship_status, friendship_id)
+    profile["friend_count"] = _friend_count(db, user.id)
+    profile["post_count"] = db.query(func.count(WallPost.id)).filter(
+        WallPost.wall_owner_id == user.id, WallPost.deleted_at.is_(None)
+    ).scalar() or 0
+    profile["is_self"] = bool(current_user and current_user.id == user.id)
+    profile["songs"] = [_song_dict(s, include_user=False) for s in songs]
+    return profile
+
+
 @router.get("/users/{user_id}/profile")
 def get_user_profile(
     user_id: str,
@@ -168,28 +212,53 @@ def get_user_profile(
     user = db.query(User).filter(User.id == user_id).first()
     if not user:
         raise HTTPException(status_code=404, detail="User not found")
+    return _build_profile(db, user, current_user)
 
-    songs_query = db.query(Song).filter(Song.user_id == user_id)
-    if not current_user or current_user.id != user_id:
-        songs_query = songs_query.filter(Song.is_public == True)
-    songs = songs_query.order_by(Song.created_at.desc()).all()
 
-    friendship_status = None
-    friendship_id = None
-    if current_user and current_user.id != user_id:
-        friendship = db.query(Friendship).filter(
-            ((Friendship.requester_id == current_user.id) & (Friendship.addressee_id == user_id)) |
-            ((Friendship.requester_id == user_id) & (Friendship.addressee_id == current_user.id))
-        ).first()
-        if friendship:
-            friendship_id = friendship.id
-            friendship_status = friendship.status.value
-            if friendship.status == FriendshipStatus.pending and friendship.requester_id == user_id:
-                friendship_status = "received_request"
+@router.get("/users/by-username/{username}/profile")
+def get_user_profile_by_username(
+    username: str,
+    current_user: Optional[User] = Depends(get_optional_user),
+    db: Session = Depends(get_db),
+):
+    """Backs /profile/:username links."""
+    user = db.query(User).filter(func.lower(User.username) == username.lower()).first()
+    if not user:
+        raise HTTPException(status_code=404, detail="User not found")
+    return _build_profile(db, user, current_user)
 
-    profile = _user_profile_dict(user, len(songs), friendship_status, friendship_id)
-    profile["songs"] = [_song_dict(s, include_user=False) for s in songs]
-    return profile
+
+@router.get("/users/{user_id}/friends")
+def get_user_friends(
+    user_id: str,
+    current_user: Optional[User] = Depends(get_optional_user),
+    db: Session = Depends(get_db),
+):
+    """A user's friend list, shown on their profile."""
+    user = db.query(User).filter(User.id == user_id).first()
+    if not user:
+        raise HTTPException(status_code=404, detail="User not found")
+    if not can_view_profile(current_user, user):
+        raise HTTPException(status_code=403, detail="This profile is private")
+
+    friendships = db.query(Friendship).options(
+        joinedload(Friendship.requester), joinedload(Friendship.addressee)
+    ).filter(
+        Friendship.status == FriendshipStatus.accepted,
+        (Friendship.requester_id == user_id) | (Friendship.addressee_id == user_id),
+    ).order_by(Friendship.created_at.desc()).all()
+
+    friends = [f.addressee if f.requester_id == user_id else f.requester for f in friendships]
+    return [
+        {
+            "id": u.id,
+            "username": u.username,
+            "display_name": u.display_name,
+            "avatar_url": u.avatar_url,
+            "bio": u.bio,
+        }
+        for u in friends
+    ]
 
 
 @router.get("/users/{user_id}/songs")
@@ -227,7 +296,10 @@ def search_users(
     current_user: Optional[User] = Depends(get_optional_user),
     db: Session = Depends(get_db),
 ):
-    users = db.query(User).filter(User.username.ilike(f"%{username}%")).limit(20).all()
+    term = f"%{username.strip().lstrip('@')}%"
+    users = db.query(User).filter(
+        User.username.ilike(term) | User.display_name.ilike(term)
+    ).limit(20).all()
     friendship_map = {}
     if current_user:
         friendships = db.query(Friendship).filter(
