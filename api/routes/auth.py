@@ -56,6 +56,7 @@ class ResetPasswordRequest(BaseModel):
 
 
 from services.world import world_fields, city_key
+from services.activity import log_activity, log_profile_changes
 
 
 def _user_dict(user: User) -> dict:
@@ -234,6 +235,11 @@ def update_me(
 ):
     """Users can only edit their own profile (the token decides whose)."""
     fields = req.model_dump(exclude_unset=True)
+    before = {
+        "country_code": current_user.country_code, "city": current_user.city, "bio": current_user.bio,
+        "visited_countries": list(current_user.visited_countries or []),
+        "favorite_genres": list(current_user.favorite_genres or []),
+    }
     if "display_name" in fields:
         current_user.display_name = fields["display_name"] or None
     if "bio" in fields:
@@ -250,6 +256,7 @@ def update_me(
     if "languages" in fields:
         current_user.languages = fields["languages"] or []
     current_user.updated_at = datetime.utcnow()
+    log_profile_changes(db, current_user, before)   # shows up on Keşfet
     db.commit()
     db.refresh(current_user)
     return _user_dict(current_user)
@@ -278,6 +285,7 @@ async def upload_avatar(
 
     current_user.avatar_url = url
     current_user.updated_at = datetime.utcnow()
+    log_activity(db, current_user.id, "avatar", {"avatar_url": url})
     db.commit()
     db.refresh(current_user)
     return _user_dict(current_user)

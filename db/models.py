@@ -131,12 +131,16 @@ class WallPost(Base):
     author_id = Column(String, ForeignKey("users.id", ondelete="CASCADE"), nullable=False, index=True)
     content = Column(Text, nullable=True)
     song_id = Column(String, ForeignKey("songs.id", ondelete="SET NULL"), nullable=True)
+    quote_post_id = Column(String, ForeignKey("wall_posts.id", ondelete="SET NULL"), nullable=True)
+    quote_song_id = Column(String, ForeignKey("songs.id", ondelete="SET NULL"), nullable=True)
     created_at = Column(DateTime, default=datetime.utcnow, nullable=False)
     deleted_at = Column(DateTime, nullable=True)
 
     wall_owner = relationship("User", foreign_keys=[wall_owner_id])
     author = relationship("User", foreign_keys=[author_id])
-    song = relationship("Song")
+    song = relationship("Song", foreign_keys=[song_id])
+    quote_post = relationship("WallPost", remote_side=[id], foreign_keys=[quote_post_id])
+    quote_song = relationship("Song", foreign_keys=[quote_song_id])
     mentions = relationship("PostMention", back_populates="post", cascade="all, delete-orphan")
 
 
@@ -202,4 +206,27 @@ class StoryView(Base):
     story_id = Column(String, ForeignKey("music_stories.id", ondelete="CASCADE"), primary_key=True)
     viewer_id = Column(String, ForeignKey("users.id", ondelete="CASCADE"), primary_key=True, index=True)
     viewed_at = Column(DateTime, default=datetime.utcnow, nullable=False)
+
+
+class SongLike(Base):
+    __tablename__ = "song_likes"
+
+    user_id = Column(String, ForeignKey("users.id", ondelete="CASCADE"), primary_key=True)
+    song_id = Column(String, ForeignKey("songs.id", ondelete="CASCADE"), primary_key=True, index=True)
+    created_at = Column(DateTime, default=datetime.utcnow, nullable=False)
+
+
+class Activity(Base):
+    """Things people do that others can discover on Keşfet (likes, profile changes)."""
+    __tablename__ = "activities"
+
+    id = Column(String, primary_key=True, default=_uuid)
+    actor_id = Column(String, ForeignKey("users.id", ondelete="CASCADE"), nullable=False, index=True)
+    kind = Column(String(32), nullable=False)
+    song_id = Column(String, ForeignKey("songs.id", ondelete="CASCADE"), nullable=True)
+    data = Column(JSON, nullable=False, default=dict)
+    created_at = Column(DateTime, default=datetime.utcnow, nullable=False, index=True)
+
+    actor = relationship("User")
+    song = relationship("Song")
 

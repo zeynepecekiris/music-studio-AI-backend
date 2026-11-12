@@ -30,6 +30,9 @@ class CreatePostRequest(BaseModel):
     content: Optional[str] = Field(None, max_length=MAX_POST_CHARS)
     song_id: Optional[str] = None
     mention_ids: List[str] = Field(default_factory=list, max_length=MAX_MENTIONS)
+    # Quote someone's post or any public song, with your own words on top
+    quote_post_id: Optional[str] = None
+    quote_song_id: Optional[str] = None
 
 
 def _friend_ids(db: Session, user_id: str) -> set:
@@ -51,17 +54,36 @@ def _mini_user(u: User) -> dict:
     }
 
 
+def _song_mini(s) -> Optional[dict]:
+    if not s:
+        return None
+    return {
+        "id": s.id,
+        "title": s.title,
+        "audio_url": s.audio_url,
+        "cover_art_url": s.cover_art_url,
+        "genre": s.genre,
+        "duration": s.duration,
+    }
+
+
+def _quote_dict(post: WallPost) -> Optional[dict]:
+    if post.quote_song:
+        return {"type": "song", "song": _song_mini(post.quote_song),
+                "user": _mini_user(post.quote_song.user) if post.quote_song.user else None}
+    if post.quote_post_id:
+        q = post.quote_post
+        if not q or q.deleted_at:
+            return {"type": "deleted"}
+        return {"type": "post", "post": {
+            "id": q.id, "content": q.content, "created_at": q.created_at.isoformat(),
+            "author": _mini_user(q.author), "song": _song_mini(q.song),
+        }}
+    return None
+
+
 def _post_dict(post: WallPost, viewer: Optional[User]) -> dict:
-    song = None
-    if post.song:
-        song = {
-            "id": post.song.id,
-            "title": post.song.title,
-            "audio_url": post.song.audio_url,
-            "cover_art_url": post.song.cover_art_url,
-            "genre": post.song.genre,
-            "duration": post.song.duration,
-        }
+    song = _song_mini(post.song)
     viewer_id = viewer.id if viewer else None
     return {
         "id": post.id,
@@ -71,6 +93,7 @@ def _post_dict(post: WallPost, viewer: Optional[User]) -> dict:
         "wall_owner": _mini_user(post.wall_owner),
         "song": song,
         "mentions": [_mini_user(m.mentioned_user) for m in post.mentions],
+        "quote": _quote_dict(post),
         "can_delete": viewer_id in (post.author_id, post.wall_owner_id),
     }
 
@@ -81,6 +104,9 @@ def _load_posts_query(db: Session):
         joinedload(WallPost.wall_owner),
         joinedload(WallPost.song),
         joinedload(WallPost.mentions).joinedload(PostMention.mentioned_user),
+        joinedload(WallPost.quote_post).joinedload(WallPost.author),
+        joinedload(WallPost.quote_post).joinedload(WallPost.song),
+        joinedload(WallPost.quote_song).joinedload(Song.user),
     )
 
 
@@ -131,8 +157,14 @@ def create_post(
         raise HTTPException(status_code=403, detail="Only friends can post on this wall")
 
     content = (req.content or "").strip() or None
-    if not content and not req.song_id:
+    if not content and not req.song_id and not req.quote_post_id and not req.quote_song_id:
         raise HTTPException(status_code=400, detail="Write something or share a song")
+    if req.quote_post_id and not db.query(WallPost).filter(
+            WallPost.id == req.quote_post_id, WallPost.deleted_at.is_(None)).first():
+        raise HTTPException(status_code=404, detail="Post not found")
+    if req.quote_song_id and not db.query(Song).filter(
+            Song.id == req.quote_song_id, (Song.is_public == True) | (Song.user_id == current_user.id)).first():
+        raise HTTPException(status_code=404, detail="Song not found")
 
     if req.song_id:
         song = db.query(Song).filter(Song.id == req.song_id, Song.user_id == current_user.id).first()
@@ -150,6 +182,8 @@ def create_post(
         author_id=current_user.id,
         content=content,
         song_id=req.song_id,
+        quote_post_id=req.quote_post_id,
+        quote_song_id=req.quote_song_id,
     )
     post.mentions = [PostMention(mentioned_user_id=m) for m in mention_ids]
     db.add(post)

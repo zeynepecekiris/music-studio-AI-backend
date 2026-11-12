@@ -22,7 +22,8 @@ from sqlalchemy.orm import Session, joinedload
 from api.routes.songs import _song_dict
 from api.routes.stories import _story_dict
 from api.routes.wall import _load_posts_query, _post_dict, _mini_user
-from db.models import Friendship, FriendshipStatus, MusicStory, Song, StoryView, User, WallPost
+from api.routes.likes import like_info
+from db.models import Activity, Friendship, FriendshipStatus, MusicStory, Song, StoryView, User, WallPost
 from db.session import get_db
 from services.auth_service import get_optional_user
 from services.world import city_key
@@ -227,6 +228,22 @@ def content_feed(
         seen = {r[0] for r in db.query(StoryView.story_id).filter(
             StoryView.viewer_id == me.id, StoryView.story_id.in_([c.id for c in clips]))}
 
+    # Likes and profile changes
+    aq = db.query(Activity).options(joinedload(Activity.actor), joinedload(Activity.song).joinedload(Song.user))
+    if authors is not None:
+        aq = aq.filter(Activity.actor_id.in_(authors))
+    elif me:
+        aq = aq.filter(Activity.actor_id != me.id)
+    acts = [a for a in window(aq, Activity.created_at).all()
+            if a.kind != "like_song" or (a.song and a.song.is_public)]
+
+    def act_item(a):
+        base = {"id": f"act-{a.id}", "created_at": a.created_at.isoformat(), "user": _mini_user(a.actor)}
+        if a.kind == "like_song":
+            song = _song_dict(a.song, include_user=True)
+            return {**base, "type": "like", "song": song}
+        return {**base, "type": "profile", "kind": a.kind, "data": a.data or {}}
+
     merged = (
         [(p.created_at, {"type": "post", "id": f"post-{p.id}", "created_at": p.created_at.isoformat(),
                          "post": _post_dict(p, me)}) for p in posts]
@@ -236,10 +253,29 @@ def content_feed(
         + [(c.created_at, {"type": "clip", "id": f"clip-{c.id}", "created_at": c.created_at.isoformat(),
                            "user": _mini_user(c.user), "story": _story_dict(c, seen=c.id in seen)})
            for c in clips]
+        + [(a.created_at, act_item(a)) for a in acts]
     )
     merged.sort(key=lambda x: x[0], reverse=True)
     page = merged[:limit]
     has_more = len(merged) > limit
+
+    # Like counts on every song shown (posts, quotes, new songs, likes)
+    songs_shown = []
+    for _, it in page:
+        if it["type"] in ("song", "like"):
+            songs_shown.append(it["song"])
+        elif it["type"] == "post":
+            p = it["post"]
+            if p.get("song"):
+                songs_shown.append(p["song"])
+            q = p.get("quote") or {}
+            if q.get("type") == "song":
+                songs_shown.append(q["song"])
+            elif q.get("type") == "post" and q["post"].get("song"):
+                songs_shown.append(q["post"]["song"])
+    info = like_info(db, [x["id"] for x in songs_shown], me)
+    for x in songs_shown:
+        x["like_count"], x["liked"] = info.get(x["id"], (0, False))
     return {
         "items": [item for _, item in page],
         "has_more": has_more,
