@@ -1,6 +1,7 @@
 import uuid
 from typing import Optional, List
 from fastapi import APIRouter, Depends, HTTPException, Query
+from sqlalchemy import func, select
 from sqlalchemy.orm import Session, joinedload
 
 from db.session import get_db
@@ -283,11 +284,22 @@ def list_users(
                 status = "received_request"
             friendship_map[other_id] = (status, f.id)
 
+    # Latest public song per user, in one query instead of one per user
+    user_ids = [u.id for u in users]
+    ranked = select(
+        Song.id,
+        func.row_number().over(
+            partition_by=Song.user_id, order_by=Song.created_at.desc()
+        ).label("rn"),
+    ).where(Song.user_id.in_(user_ids), Song.is_public == True).subquery()
+    latest_songs = {
+        s.user_id: s
+        for s in db.query(Song).join(ranked, ranked.c.id == Song.id).filter(ranked.c.rn == 1)
+    } if user_ids else {}
+
     result = []
     for u in users:
-        latest_song = db.query(Song).filter(
-            Song.user_id == u.id, Song.is_public == True
-        ).order_by(Song.created_at.desc()).first()
+        latest_song = latest_songs.get(u.id)
 
         result.append({
             "id": u.id,
