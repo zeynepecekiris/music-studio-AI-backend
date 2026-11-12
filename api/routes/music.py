@@ -1,4 +1,6 @@
+import logging
 from fastapi import APIRouter, HTTPException, BackgroundTasks, UploadFile, File, Depends
+from sqlalchemy.orm import Session
 from fastapi.responses import FileResponse, JSONResponse
 from typing import List, Optional
 import os
@@ -12,15 +14,22 @@ from models.schemas import (
 from services.elevenlabs_service import elevenlabs_service, PromptSafetyError
 from services.auth_service import get_current_user
 from db.models import User
+from db.session import get_db
+from api.routes.songs import save_generated_song
 from config.settings import settings
 
 router = APIRouter(prefix="/api/music", tags=["music"])
+logger = logging.getLogger(__name__)
 
 # In-memory task storage (in production, use Redis or database)
 processing_tasks = {}
 
 @router.post("/generate", response_model=MusicGenerationResponse)
-async def generate_music(request: MusicGenerationRequest, current_user: User = Depends(get_current_user)):
+async def generate_music(
+    request: MusicGenerationRequest,
+    current_user: User = Depends(get_current_user),
+    db: Session = Depends(get_db),
+):
     """
     Generate music with vocals based on lyrics and preferences
     """
@@ -41,7 +50,16 @@ async def generate_music(request: MusicGenerationRequest, current_user: User = D
         
         # Generate music using ElevenLabs
         music_response = await elevenlabs_service.generate_music(request)
-        
+
+        # Keep the song: cloud storage + the user's song list (profile, wall, chat).
+        # A storage hiccup must not cost the user the song they just made.
+        try:
+            song = await save_generated_song(db, current_user, request, music_response)
+            music_response.stored_audio_url = song.audio_url
+        except Exception:
+            db.rollback()
+            logger.exception("Could not save generated song %s", music_response.id)
+
         return music_response
         
     except PromptSafetyError as safety_error:

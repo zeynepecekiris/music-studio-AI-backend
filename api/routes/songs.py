@@ -57,6 +57,41 @@ def _user_profile_dict(
     }
 
 
+async def save_generated_song(
+    db: Session,
+    user: User,
+    request: MusicGenerationRequest,
+    music_response,
+    title: Optional[str] = None,
+    is_public: bool = True,
+) -> Song:
+    """Upload a freshly generated track to cloud storage and record it as the user's song."""
+    import os, aiofiles
+    from config.settings import settings
+
+    # ElevenLabs output lands on local disk as /music/<id>.mp3
+    local_path = os.path.join(settings.UPLOAD_DIR, "music", f"{music_response.id}.mp3")
+    async with aiofiles.open(local_path, "rb") as f:
+        audio_bytes = await f.read()
+    audio_url = await upload_audio(audio_bytes, f"{music_response.id}.mp3")
+
+    song = Song(
+        id=music_response.id,
+        user_id=user.id,
+        title=(title or request.title or "").strip() or f"{request.genre.value.title()} – {request.theme.value.title()}",
+        audio_url=audio_url,
+        lyrics=request.lyrics,
+        genre=request.genre.value,
+        mood=request.mood.value,
+        duration=request.duration,
+        is_public=is_public,
+    )
+    db.add(song)
+    db.commit()
+    db.refresh(song)
+    return song
+
+
 @router.post("/songs/generate")
 async def generate_song(
     request: MusicGenerationRequest,
@@ -73,33 +108,7 @@ async def generate_song(
             raise HTTPException(status_code=400, detail="Duration must be between 15 and 300 seconds")
 
         music_response = await elevenlabs_service.generate_music(request)
-
-        # music_response.audio_url is like /music/<uuid>.mp3 (local path)
-        # Re-read the bytes and upload to configured storage
-        import os, aiofiles
-        from config.settings import settings
-        local_path = os.path.join(settings.UPLOAD_DIR, "music", f"{music_response.id}.mp3")
-
-        async with aiofiles.open(local_path, "rb") as f:
-            audio_bytes = await f.read()
-
-        filename = f"{music_response.id}.mp3"
-        audio_url = await upload_audio(audio_bytes, filename)
-
-        song = Song(
-            id=music_response.id,
-            user_id=current_user.id,
-            title=title or f"{request.genre.value.title()} – {request.theme.value.title()}",
-            audio_url=audio_url,
-            lyrics=request.lyrics,
-            genre=request.genre.value,
-            mood=request.mood.value,
-            duration=request.duration,
-            is_public=is_public,
-        )
-        db.add(song)
-        db.commit()
-        db.refresh(song)
+        song = await save_generated_song(db, current_user, request, music_response, title, is_public)
 
         result = _song_dict(song, include_user=False)
         result["processing_time"] = music_response.processing_time

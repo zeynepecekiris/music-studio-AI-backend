@@ -110,6 +110,7 @@ class MusicGenerationRequest(BaseModel):
     duration: int = Field(30, ge=15, le=300, description="Duration in seconds (15-300 seconds)")
     language: str = Field("tr", description="Language code (tr, en, es)")
     user_id: Optional[str] = Field(None, description="User ID for tracking")
+    title: Optional[str] = Field(None, max_length=120, description="Song title shown on profiles")
 
 # Response Models
 class LyricsResponse(BaseModel):
@@ -136,6 +137,8 @@ class MusicGenerationResponse(BaseModel):
     created_at: datetime = Field(default_factory=datetime.now)
     processing_time: float
     file_size: Optional[int] = None
+    # Permanent URL in cloud storage (audio_url stays relative for older app versions)
+    stored_audio_url: Optional[str] = None
 
 class AudioProcessingStatus(BaseModel):
     task_id: str
