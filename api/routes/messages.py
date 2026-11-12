@@ -1,5 +1,7 @@
+from datetime import datetime
 from typing import Optional, List
 from fastapi import APIRouter, Depends, HTTPException, Query
+from sqlalchemy import func, select
 from sqlalchemy.orm import Session, joinedload
 from pydantic import BaseModel
 
@@ -22,6 +24,7 @@ def _message_dict(msg: Message) -> dict:
         "sender_id": msg.sender_id,
         "content": msg.content,
         "created_at": msg.created_at.isoformat(),
+        "read_at": msg.read_at.isoformat() if msg.read_at else None,
         "song": None,
     }
     if msg.song:
@@ -34,19 +37,59 @@ def _message_dict(msg: Message) -> dict:
     return d
 
 
-def _conversation_dict(conv: Conversation, current_user_id: str) -> dict:
+def _conversation_dict(
+    conv: Conversation,
+    current_user_id: str,
+    last_msg: Optional[Message],
+    unread_count: int,
+) -> dict:
     other = conv.user_b if conv.user_a_id == current_user_id else conv.user_a
-    last_msg = conv.messages[-1] if conv.messages else None
+    last_at = conv.last_message_at or conv.created_at
     return {
         "id": conv.id,
         "created_at": conv.created_at.isoformat(),
+        "last_message_at": last_at.isoformat() if last_at else None,
         "other_user": {
             "id": other.id,
             "username": other.username,
+            "display_name": other.display_name,
             "avatar_url": other.avatar_url,
         },
         "last_message": _message_dict(last_msg) if last_msg else None,
+        "unread_count": unread_count,
     }
+
+
+def _member_or_403(db: Session, conversation_id: str, user_id: str) -> Conversation:
+    conv = db.query(Conversation).filter(Conversation.id == conversation_id).first()
+    if not conv:
+        raise HTTPException(status_code=404, detail="Conversation not found")
+    if user_id not in (conv.user_a_id, conv.user_b_id):
+        raise HTTPException(status_code=403, detail="Not authorized")
+    return conv
+
+
+def create_message(
+    db: Session,
+    conv: Conversation,
+    sender_id: str,
+    content: Optional[str],
+    song_id: Optional[str],
+) -> Message:
+    """Persist a message and bump the conversation. Shared by REST and WebSocket."""
+    msg = Message(
+        conversation_id=conv.id,
+        sender_id=sender_id,
+        content=content,
+        song_id=song_id,
+    )
+    db.add(msg)
+    db.flush()
+    conv.last_message_at = msg.created_at
+    conv.updated_at = msg.created_at
+    db.commit()
+    db.refresh(msg)
+    return msg
 
 
 def _get_or_create_conversation(db: Session, user_a_id: str, user_b_id: str) -> Conversation:
@@ -68,14 +111,69 @@ def list_conversations(
     db: Session = Depends(get_db),
 ):
     convs = db.query(Conversation).options(
-        joinedload(Conversation.messages).joinedload(Message.song),
         joinedload(Conversation.user_a),
         joinedload(Conversation.user_b),
     ).filter(
         (Conversation.user_a_id == current_user.id) |
         (Conversation.user_b_id == current_user.id)
+    ).order_by(
+        func.coalesce(Conversation.last_message_at, Conversation.created_at).desc()
     ).all()
-    return [_conversation_dict(c, current_user.id) for c in convs]
+    if not convs:
+        return []
+    ids = [c.id for c in convs]
+
+    # Only the newest message of each conversation, in a single query
+    ranked = select(
+        Message.id,
+        func.row_number().over(
+            partition_by=Message.conversation_id,
+            order_by=Message.created_at.desc(),
+        ).label("rn"),
+    ).where(Message.conversation_id.in_(ids)).subquery()
+    last_msgs = {
+        m.conversation_id: m
+        for m in db.query(Message)
+        .options(joinedload(Message.song))
+        .join(ranked, ranked.c.id == Message.id)
+        .filter(ranked.c.rn == 1)
+    }
+
+    unread = dict(
+        db.query(Message.conversation_id, func.count(Message.id))
+        .filter(
+            Message.conversation_id.in_(ids),
+            Message.sender_id != current_user.id,
+            Message.read_at.is_(None),
+        )
+        .group_by(Message.conversation_id)
+        .all()
+    )
+
+    return [
+        _conversation_dict(c, current_user.id, last_msgs.get(c.id), unread.get(c.id, 0))
+        for c in convs
+    ]
+
+
+@router.get("/unread-count")
+def unread_count(
+    current_user: User = Depends(get_current_user),
+    db: Session = Depends(get_db),
+):
+    """Total unread messages across all conversations (tab badge)."""
+    count = (
+        db.query(func.count(Message.id))
+        .join(Conversation, Conversation.id == Message.conversation_id)
+        .filter(
+            (Conversation.user_a_id == current_user.id) |
+            (Conversation.user_b_id == current_user.id),
+            Message.sender_id != current_user.id,
+            Message.read_at.is_(None),
+        )
+        .scalar()
+    )
+    return {"count": count or 0}
 
 
 @router.post("/with/{other_user_id}")
@@ -97,21 +195,22 @@ def get_messages(
     conversation_id: str,
     page: int = Query(1, ge=1),
     per_page: int = Query(30, ge=1, le=100),
+    before: Optional[datetime] = Query(None, description="Return messages older than this (cursor paging)"),
     current_user: User = Depends(get_current_user),
     db: Session = Depends(get_db),
 ):
-    conv = db.query(Conversation).filter(Conversation.id == conversation_id).first()
-    if not conv:
-        raise HTTPException(status_code=404, detail="Conversation not found")
-    if current_user.id not in (conv.user_a_id, conv.user_b_id):
-        raise HTTPException(status_code=403, detail="Not authorized")
+    _member_or_403(db, conversation_id, current_user.id)
 
-    offset = (page - 1) * per_page
-    total = db.query(Message).filter(Message.conversation_id == conversation_id).count()
+    query = db.query(Message).filter(Message.conversation_id == conversation_id)
+    if before is not None:
+        # Cursor paging: stable even while new messages arrive
+        query = query.filter(Message.created_at < before)
+        offset = 0
+    else:
+        offset = (page - 1) * per_page
+    total = query.count()
     msgs = (
-        db.query(Message)
-        .options(joinedload(Message.song))
-        .filter(Message.conversation_id == conversation_id)
+        query.options(joinedload(Message.song))
         .order_by(Message.created_at.desc())
         .offset(offset)
         .limit(per_page)
@@ -126,6 +225,26 @@ def get_messages(
     }
 
 
+@router.post("/{conversation_id}/read")
+def mark_read(
+    conversation_id: str,
+    current_user: User = Depends(get_current_user),
+    db: Session = Depends(get_db),
+):
+    _member_or_403(db, conversation_id, current_user.id)
+    updated = (
+        db.query(Message)
+        .filter(
+            Message.conversation_id == conversation_id,
+            Message.sender_id != current_user.id,
+            Message.read_at.is_(None),
+        )
+        .update({Message.read_at: datetime.utcnow()}, synchronize_session=False)
+    )
+    db.commit()
+    return {"marked": updated}
+
+
 @router.post("/{conversation_id}/messages")
 def send_message(
     conversation_id: str,
@@ -136,26 +255,12 @@ def send_message(
     if not req.content and not req.song_id:
         raise HTTPException(status_code=400, detail="Message must have content or a song")
 
-    conv = db.query(Conversation).filter(Conversation.id == conversation_id).first()
-    if not conv:
-        raise HTTPException(status_code=404, detail="Conversation not found")
-    if current_user.id not in (conv.user_a_id, conv.user_b_id):
-        raise HTTPException(status_code=403, detail="Not authorized")
+    conv = _member_or_403(db, conversation_id, current_user.id)
 
     if req.song_id:
         song = db.query(Song).filter(Song.id == req.song_id, Song.user_id == current_user.id).first()
         if not song:
             raise HTTPException(status_code=404, detail="Song not found or not yours")
 
-    msg = Message(
-        conversation_id=conversation_id,
-        sender_id=current_user.id,
-        content=req.content,
-        song_id=req.song_id,
-    )
-    db.add(msg)
-    db.commit()
-    db.refresh(msg)
-    if msg.song_id:
-        msg.song  # eager load
+    msg = create_message(db, conv, current_user.id, req.content, req.song_id)
     return _message_dict(msg)

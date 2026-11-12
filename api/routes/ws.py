@@ -13,6 +13,7 @@ from sqlalchemy.orm import Session
 
 from db.session import get_db
 from db.models import Conversation, Message, Song
+from api.routes.messages import create_message, _message_dict
 from services.auth_service import _decode_token
 
 router = APIRouter(tags=["websocket"])
@@ -88,33 +89,8 @@ async def ws_chat(
                 if not song:
                     continue
 
-            msg = Message(
-                conversation_id=conversation_id,
-                sender_id=user_id,
-                content=content,
-                song_id=song_id,
-            )
-            db.add(msg)
-            db.commit()
-            db.refresh(msg)
-
-            payload = {
-                "id": msg.id,
-                "conversation_id": msg.conversation_id,
-                "sender_id": msg.sender_id,
-                "content": msg.content,
-                "created_at": msg.created_at.isoformat(),
-                "song": None,
-            }
-            if msg.song_id and song_id:
-                song_obj = db.query(Song).filter(Song.id == song_id).first()
-                if song_obj:
-                    payload["song"] = {
-                        "id": song_obj.id,
-                        "title": song_obj.title,
-                        "audio_url": song_obj.audio_url,
-                        "cover_art_url": song_obj.cover_art_url,
-                    }
+            msg = create_message(db, conv, user_id, content, song_id)
+            payload = _message_dict(msg)
 
             await manager.broadcast(conversation_id, payload)
 

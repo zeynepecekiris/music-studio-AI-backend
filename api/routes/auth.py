@@ -151,11 +151,15 @@ def delete_account(
     db: Session = Depends(get_db),
 ):
     from db.models import Song, Friendship, Conversation, Message
-    db.query(Message).filter(Message.sender_id == current_user.id).delete()
-    db.query(Conversation).filter(
+    conv_ids = [cid for (cid,) in db.query(Conversation.id).filter(
         (Conversation.user_a_id == current_user.id) |
         (Conversation.user_b_id == current_user.id)
-    ).delete()
+    )]
+    # Both sides' messages must go before the conversations (FK)
+    db.query(Message).filter(
+        (Message.sender_id == current_user.id) | Message.conversation_id.in_(conv_ids)
+    ).delete(synchronize_session=False)
+    db.query(Conversation).filter(Conversation.id.in_(conv_ids)).delete(synchronize_session=False)
     db.query(Friendship).filter(
         (Friendship.requester_id == current_user.id) |
         (Friendship.addressee_id == current_user.id)
