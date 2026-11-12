@@ -8,7 +8,7 @@ from sqlalchemy import engine_from_config, pool
 sys.path.insert(0, os.path.dirname(os.path.dirname(__file__)))
 
 from config.settings import settings
-from db.base import Base
+from db.base import Base, _fix_db_url
 import db.models  # noqa: register all models
 
 config = context.config
@@ -20,10 +20,7 @@ target_metadata = Base.metadata
 
 
 def _db_url():
-    url = settings.DATABASE_URL
-    if url.startswith("postgres://"):
-        return url.replace("postgres://", "postgresql://", 1)
-    return url
+    return _fix_db_url(settings.DATABASE_URL)
 
 
 def run_migrations_offline():

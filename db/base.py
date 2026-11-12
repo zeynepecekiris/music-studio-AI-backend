@@ -6,9 +6,11 @@ import re
 from config.settings import settings
 
 def _fix_db_url(url: str) -> str:
-    # Heroku returns postgres://, SQLAlchemy needs postgresql://
-    if url.startswith("postgres://"):
-        return url.replace("postgres://", "postgresql://", 1)
+    # Heroku returns postgres://. Pin the psycopg2 driver explicitly:
+    # SQLAlchemy 2.1+ defaults postgresql:// to psycopg (v3), which isn't installed.
+    for prefix in ("postgres://", "postgresql://"):
+        if url.startswith(prefix):
+            return "postgresql+psycopg2://" + url[len(prefix):]
     return url
 
 DATABASE_URL = _fix_db_url(settings.DATABASE_URL)
