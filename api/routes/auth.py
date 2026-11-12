@@ -1,7 +1,10 @@
-from fastapi import APIRouter, BackgroundTasks, Depends, HTTPException, status
+import uuid
+from datetime import datetime
+
+from fastapi import APIRouter, BackgroundTasks, Depends, File, HTTPException, UploadFile, status
 from sqlalchemy.orm import Session
-from pydantic import BaseModel, Field
-from typing import Optional
+from pydantic import BaseModel, Field, field_validator
+from typing import List, Optional
 
 from db.session import get_db
 from db.models import User
@@ -12,6 +15,8 @@ from services.auth_service import (
     get_current_user, _decode_token,
 )
 from services.verification_service import create_and_send_code, verify_code
+from services.storage_service import upload_file
+from config.settings import settings
 
 router = APIRouter(prefix="/auth", tags=["auth"])
 
@@ -57,8 +62,50 @@ def _user_dict(user: User) -> dict:
         "display_name": user.display_name,
         "bio": user.bio,
         "avatar_url": user.avatar_url,
+        "favorite_genres": list(user.favorite_genres or []),
         "created_at": user.created_at.isoformat(),
     }
+
+
+# Stable ids; the app shows localized names. Keep in sync with the app's GENRES.
+GENRES = {
+    "pop", "rock", "rap", "rnb", "electronic", "jazz", "arabesk", "turkpop",
+    "lofi", "classical", "metal", "indie", "folk", "reggae", "kpop", "acoustic",
+}
+
+MAX_AVATAR_BYTES = 5 * 1024 * 1024
+
+
+class UpdateProfileRequest(BaseModel):
+    display_name: Optional[str] = Field(None, max_length=50)
+    bio: Optional[str] = Field(None, max_length=300)
+    favorite_genres: Optional[List[str]] = Field(None, max_length=10)
+
+    @field_validator("display_name", "bio")
+    @classmethod
+    def _strip(cls, v):
+        return v.strip() if isinstance(v, str) else v
+
+    @field_validator("favorite_genres")
+    @classmethod
+    def _known_genres(cls, v):
+        if v is None:
+            return v
+        unknown = [g for g in v if g not in GENRES]
+        if unknown:
+            raise ValueError(f"Unknown genres: {', '.join(unknown)}")
+        return list(dict.fromkeys(v))  # dedupe, keep order
+
+
+def _image_type(data: bytes) -> Optional[str]:
+    """Detect by content, not by the client-supplied header."""
+    if data[:3] == b"\xff\xd8\xff":
+        return "jpg"
+    if data[:8] == b"\x89PNG\r\n\x1a\n":
+        return "png"
+    if data[:4] == b"RIFF" and data[8:12] == b"WEBP":
+        return "webp"
+    return None
 
 
 @router.post("/register", response_model=TokenResponse, status_code=status.HTTP_201_CREATED)
@@ -137,6 +184,54 @@ def refresh(req: RefreshRequest, db: Session = Depends(get_db)):
 
 @router.get("/me")
 def me(current_user: User = Depends(get_current_user)):
+    return _user_dict(current_user)
+
+
+@router.patch("/me")
+def update_me(
+    req: UpdateProfileRequest,
+    current_user: User = Depends(get_current_user),
+    db: Session = Depends(get_db),
+):
+    """Users can only edit their own profile (the token decides whose)."""
+    fields = req.model_dump(exclude_unset=True)
+    if "display_name" in fields:
+        current_user.display_name = fields["display_name"] or None
+    if "bio" in fields:
+        current_user.bio = fields["bio"] or None
+    if "favorite_genres" in fields:
+        current_user.favorite_genres = fields["favorite_genres"] or []
+    current_user.updated_at = datetime.utcnow()
+    db.commit()
+    db.refresh(current_user)
+    return _user_dict(current_user)
+
+
+@router.post("/me/avatar")
+async def upload_avatar(
+    file: UploadFile = File(...),
+    current_user: User = Depends(get_current_user),
+    db: Session = Depends(get_db),
+):
+    if not (settings.S3_BUCKET_NAME and settings.S3_ACCESS_KEY) and not settings.DEBUG:
+        # Heroku's disk is wiped daily; a photo saved there would vanish
+        raise HTTPException(status_code=503, detail="Photo storage is not configured yet")
+
+    data = await file.read(MAX_AVATAR_BYTES + 1)
+    if len(data) > MAX_AVATAR_BYTES:
+        raise HTTPException(status_code=413, detail="Image too large (max 5 MB)")
+    ext = _image_type(data)
+    if not ext:
+        raise HTTPException(status_code=400, detail="Only JPEG, PNG or WebP images")
+
+    content_type = {"jpg": "image/jpeg", "png": "image/png", "webp": "image/webp"}[ext]
+    # New name per upload so caches never show the old photo
+    url = await upload_file(data, f"avatars/{current_user.id}", f"{uuid.uuid4().hex}.{ext}", content_type)
+
+    current_user.avatar_url = url
+    current_user.updated_at = datetime.utcnow()
+    db.commit()
+    db.refresh(current_user)
     return _user_dict(current_user)
 
 

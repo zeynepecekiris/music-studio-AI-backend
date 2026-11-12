@@ -49,6 +49,7 @@ def _user_profile_dict(
         "display_name": user.display_name,
         "bio": user.bio,
         "avatar_url": user.avatar_url,
+        "favorite_genres": list(user.favorite_genres or []),
         "created_at": user.created_at.isoformat(),
         "song_count": song_count,
         "friendship_status": friendship_status,

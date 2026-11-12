@@ -56,6 +56,7 @@ app.include_router(ws.router)
 app.mount("/music", StaticFiles(directory=os.path.join(settings.UPLOAD_DIR, "music"), check_dir=False), name="music")
 app.mount("/voices", StaticFiles(directory=os.path.join(settings.UPLOAD_DIR, "voices"), check_dir=False), name="voices")
 app.mount("/videos", StaticFiles(directory=os.path.join(settings.UPLOAD_DIR, "videos"), check_dir=False), name="videos")
+app.mount("/avatars", StaticFiles(directory=os.path.join(settings.UPLOAD_DIR, "avatars"), check_dir=False), name="avatars")
 
 
 @app.get("/", response_model=HealthCheck)

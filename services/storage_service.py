@@ -30,15 +30,19 @@ def _s3_client():
 
 async def upload_audio(audio_bytes: bytes, filename: str) -> str:
     """Upload audio bytes; return public URL."""
+    return await upload_file(audio_bytes, "music", filename, "audio/mpeg")
+
+
+async def upload_file(data: bytes, folder: str, filename: str, content_type: str) -> str:
+    """Upload to S3/R2 under folder/filename (local disk fallback); return URL."""
     if settings.S3_BUCKET_NAME and settings.S3_ACCESS_KEY:
-        return await _upload_to_s3(audio_bytes, filename, "audio/mpeg")
-    return await _save_local(audio_bytes, "music", filename)
+        return await _upload_to_s3(data, f"{folder}/{filename}", content_type)
+    return await _save_local(data, folder, filename)
 
 
-async def _upload_to_s3(data: bytes, filename: str, content_type: str) -> str:
+async def _upload_to_s3(data: bytes, key: str, content_type: str) -> str:
     import asyncio
     s3 = _s3_client()
-    key = f"music/{filename}"
 
     def _put():
         s3.put_object(
