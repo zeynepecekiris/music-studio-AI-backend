@@ -30,6 +30,7 @@ def _song_dict(song: Song, include_user: bool = True) -> dict:
         d["user"] = {
             "id": song.user.id,
             "username": song.user.username,
+            "display_name": song.user.display_name,
             "avatar_url": song.user.avatar_url,
         }
     return d
@@ -44,6 +45,7 @@ def _user_profile_dict(
     return {
         "id": user.id,
         "username": user.username,
+        "display_name": user.display_name,
         "bio": user.bio,
         "avatar_url": user.avatar_url,
         "created_at": user.created_at.isoformat(),
@@ -241,6 +243,7 @@ def search_users(
         {
             "id": u.id,
             "username": u.username,
+            "display_name": u.display_name,
             "bio": u.bio,
             "avatar_url": u.avatar_url,
             "friendship_status": friendship_map.get(u.id, (None, None))[0],
@@ -289,6 +292,7 @@ def list_users(
         result.append({
             "id": u.id,
             "username": u.username,
+            "display_name": u.display_name,
             "bio": u.bio,
             "avatar_url": u.avatar_url,
             "created_at": u.created_at.isoformat(),

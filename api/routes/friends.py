@@ -13,6 +13,7 @@ def _friend_dict(user: User) -> dict:
     return {
         "id": user.id,
         "username": user.username,
+        "display_name": user.display_name,
         "bio": user.bio,
         "avatar_url": user.avatar_url,
     }

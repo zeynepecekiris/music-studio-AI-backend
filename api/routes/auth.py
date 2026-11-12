@@ -54,6 +54,7 @@ def _user_dict(user: User) -> dict:
         "id": user.id,
         "email": user.email,
         "username": user.username,
+        "display_name": user.display_name,
         "bio": user.bio,
         "avatar_url": user.avatar_url,
         "created_at": user.created_at.isoformat(),
