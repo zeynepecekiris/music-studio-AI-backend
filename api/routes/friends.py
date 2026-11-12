@@ -113,6 +113,26 @@ def cancel_friend_request(
     return {"message": "Friend request cancelled"}
 
 
+@router.delete("/{friendship_id}")
+def remove_friend(
+    friendship_id: str,
+    current_user: User = Depends(get_current_user),
+    db: Session = Depends(get_db),
+):
+    """Unfriend. Either side of an accepted friendship may remove it."""
+    friendship = db.query(Friendship).filter(Friendship.id == friendship_id).first()
+    if not friendship:
+        raise HTTPException(status_code=404, detail="Friendship not found")
+    if current_user.id not in (friendship.requester_id, friendship.addressee_id):
+        raise HTTPException(status_code=403, detail="Not authorized")
+    if friendship.status != FriendshipStatus.accepted:
+        raise HTTPException(status_code=400, detail="Not friends")
+
+    db.delete(friendship)
+    db.commit()
+    return {"message": "Friend removed"}
+
+
 @router.get("")
 def list_friends(
     current_user: User = Depends(get_current_user),
