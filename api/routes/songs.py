@@ -379,9 +379,39 @@ def list_users(
         for s in db.query(Song).join(ranked, ranked.c.id == Song.id).filter(ranked.c.rn == 1)
     } if user_ids else {}
 
+    # Discover ranking signals, a few grouped queries for the whole page
+    song_stats = {
+        uid: (cnt, last) for uid, cnt, last in db.query(
+            Song.user_id, func.count(Song.id), func.max(Song.created_at)
+        ).filter(Song.user_id.in_(user_ids)).group_by(Song.user_id)
+    } if user_ids else {}
+    last_posts = {
+        uid: last for uid, last in db.query(
+            WallPost.author_id, func.max(WallPost.created_at)
+        ).filter(WallPost.author_id.in_(user_ids)).group_by(WallPost.author_id)
+    } if user_ids else {}
+
+    def accepted_friends(ids):
+        rows = db.query(Friendship.requester_id, Friendship.addressee_id).filter(
+            Friendship.status == FriendshipStatus.accepted,
+            (Friendship.requester_id.in_(ids)) | (Friendship.addressee_id.in_(ids)),
+        ).all()
+        out = {}
+        for a, b in rows:
+            out.setdefault(a, set()).add(b)
+            out.setdefault(b, set()).add(a)
+        return out
+
+    page_friends = accepted_friends(user_ids) if user_ids else {}
+    my_friends = accepted_friends([current_user.id]).get(current_user.id, set()) if current_user else set()
+    my_genres = set(current_user.favorite_genres or []) if current_user else set()
+
     result = []
     for u in users:
         latest_song = latest_songs.get(u.id)
+        song_count, last_song_at = song_stats.get(u.id, (0, None))
+        activity = [d for d in (last_song_at, last_posts.get(u.id), u.updated_at) if d]
+        genres = list(u.favorite_genres or [])
 
         result.append({
             "id": u.id,
@@ -393,6 +423,11 @@ def list_users(
             "friendship_status": friendship_map.get(u.id, (None, None))[0],
             "friendship_id": friendship_map.get(u.id, (None, None))[1],
             "latest_song": _song_dict(latest_song, include_user=False) if latest_song else None,
+            "favorite_genres": genres,
+            "song_count": song_count,
+            "last_active_at": max(activity).isoformat() if activity else u.created_at.isoformat(),
+            "mutual_friend_count": len(my_friends & page_friends.get(u.id, set())) if current_user else 0,
+            "common_genre_count": len(my_genres & set(genres)),
         })
 
     return {
