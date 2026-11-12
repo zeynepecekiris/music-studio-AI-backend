@@ -29,8 +29,6 @@ from services.world import city_key
 
 router = APIRouter(tags=["discover"])
 
-CANDIDATE_POOL = 400      # most recently active people considered for suggestions
-WORLD_SHARE = 0.3         # at least this share of suggestions from other countries
 
 
 def _friendships(db: Session, me: User):
@@ -62,12 +60,32 @@ def _accepted_friends_of(db: Session, ids):
     return out
 
 
+AWAY_SLOTS = {1, 4, 7}     # in every 10: places 2, 5 and 8 go to other countries (~30%)
+
+
+def _mix_world(ranked, my_country):
+    """Keep the world in the mix all the way down: ~3 of every 10 from other countries."""
+    home = [u for u in ranked if u.country_code == my_country]
+    away = [u for u in ranked if u.country_code != my_country]
+    out, h, a = [], 0, 0
+    while h < len(home) or a < len(away):
+        take_away = (len(out) % 10 in AWAY_SLOTS and a < len(away)) or h >= len(home)
+        if take_away:
+            out.append(away[a]); a += 1
+        else:
+            out.append(home[h]); h += 1
+    return out
+
+
 @router.get("/users/suggested")
 def suggested_users(
-    limit: int = Query(20, ge=1, le=40),
+    limit: int = Query(20, ge=1, le=50),
+    offset: int = Query(0, ge=0),
+    seed: int = Query(0, description="Same seed = same order, so paging is stable within a session"),
     me: Optional[User] = Depends(get_optional_user),
     db: Session = Depends(get_db),
 ):
+    """Everyone you could add, best matches first (paged with offset)."""
     now = datetime.utcnow()
     status_map, my_friends = _friendships(db, me) if me else ({}, set())
 
@@ -87,8 +105,6 @@ def suggested_users(
     if me:
         users = users.filter(User.id != me.id)
     pool = [u for u in users.all() if u.id not in my_friends]
-    pool.sort(key=last_active, reverse=True)
-    pool = pool[:CANDIDATE_POOL]
 
     pool_friends = _accepted_friends_of(db, [u.id for u in pool])
     my_genres = set(me.favorite_genres or []) if me else set()
@@ -109,20 +125,15 @@ def suggested_users(
         s += len(my_genres & set(u.favorite_genres or [])) * 1.5
         if not u.avatar_url:
             s -= 2                                          # half-finished accounts sink
-        return s + random.uniform(0, 2.5)                   # a little variety every time
+        # a little variety per session, stable across pages of the same session
+        return s + random.Random(f"{seed}:{u.id}").uniform(0, 2.5)
 
     ranked = sorted(pool, key=score, reverse=True)
-
-    # Keep the world in the mix: reserve a share for people from other countries
+    # Keep the world in the mix all the way down the list
     if my_country:
-        home = [u for u in ranked if u.country_code == my_country]
-        away = [u for u in ranked if u.country_code != my_country]
-        n_away = min(len(away), max(1, round(limit * WORLD_SHARE)))
-        picked = away[:n_away] + home[: limit - n_away]
-        picked += [u for u in ranked if u not in picked][: limit - len(picked)]
-        picked.sort(key=ranked.index)
-    else:
-        picked = ranked[:limit]
+        ranked = _mix_world(ranked, my_country)
+    total = len(ranked)
+    picked = ranked[offset: offset + limit]
 
     # Latest public song per picked user
     ids = [u.id for u in picked]
@@ -157,7 +168,7 @@ def suggested_users(
             "common_genre_count": len(my_genres & set(u.favorite_genres or [])),
             "last_active_at": last_active(u).isoformat(),
         })
-    return {"items": items}
+    return {"items": items, "total": total, "has_more": offset + limit < total, "next_offset": offset + limit}
 
 
 @router.get("/posts/feed")
