@@ -156,3 +156,16 @@ class AdReward(Base):
     verified = Column(Boolean, default=False, nullable=False)
     consumed_at = Column(DateTime, nullable=True)
     created_at = Column(DateTime, default=datetime.utcnow, nullable=False)
+
+
+class LyricsDraft(Base):
+    __tablename__ = "lyrics_drafts"
+
+    id = Column(String, primary_key=True, default=_uuid)
+    user_id = Column(String, ForeignKey("users.id", ondelete="CASCADE"), nullable=False, index=True)
+    title = Column(String(120), nullable=True)
+    story = Column(Text, nullable=True)
+    theme = Column(String(40), nullable=True)
+    lyrics = Column(Text, nullable=False)
+    created_at = Column(DateTime, default=datetime.utcnow, nullable=False)
+    updated_at = Column(DateTime, default=datetime.utcnow, nullable=False)
