@@ -35,7 +35,12 @@ def _song_dict(song: Song, include_user: bool = True) -> dict:
     return d
 
 
-def _user_profile_dict(user: User, song_count: int, friendship_status: Optional[str] = None) -> dict:
+def _user_profile_dict(
+    user: User,
+    song_count: int,
+    friendship_status: Optional[str] = None,
+    friendship_id: Optional[str] = None,
+) -> dict:
     return {
         "id": user.id,
         "username": user.username,
@@ -44,6 +49,7 @@ def _user_profile_dict(user: User, song_count: int, friendship_status: Optional[
         "created_at": user.created_at.isoformat(),
         "song_count": song_count,
         "friendship_status": friendship_status,
+        "friendship_id": friendship_id,
     }
 
 
@@ -165,17 +171,19 @@ def get_user_profile(
     songs = songs_query.order_by(Song.created_at.desc()).all()
 
     friendship_status = None
+    friendship_id = None
     if current_user and current_user.id != user_id:
         friendship = db.query(Friendship).filter(
             ((Friendship.requester_id == current_user.id) & (Friendship.addressee_id == user_id)) |
             ((Friendship.requester_id == user_id) & (Friendship.addressee_id == current_user.id))
         ).first()
         if friendship:
+            friendship_id = friendship.id
             friendship_status = friendship.status.value
             if friendship.status == FriendshipStatus.pending and friendship.requester_id == user_id:
                 friendship_status = "received_request"
 
-    profile = _user_profile_dict(user, len(songs), friendship_status)
+    profile = _user_profile_dict(user, len(songs), friendship_status, friendship_id)
     profile["songs"] = [_song_dict(s, include_user=False) for s in songs]
     return profile
 
@@ -227,7 +235,7 @@ def search_users(
             status = f.status.value
             if f.status == FriendshipStatus.pending and f.requester_id != current_user.id:
                 status = "received_request"
-            friendship_map[other_id] = status
+            friendship_map[other_id] = (status, f.id)
 
     return [
         {
@@ -235,7 +243,8 @@ def search_users(
             "username": u.username,
             "bio": u.bio,
             "avatar_url": u.avatar_url,
-            "friendship_status": friendship_map.get(u.id),
+            "friendship_status": friendship_map.get(u.id, (None, None))[0],
+            "friendship_id": friendship_map.get(u.id, (None, None))[1],
             "is_self": current_user.id == u.id if current_user else False,
         }
         for u in users
@@ -269,7 +278,7 @@ def list_users(
             status = f.status.value
             if f.status == FriendshipStatus.pending and f.requester_id != current_user.id:
                 status = "received_request"
-            friendship_map[other_id] = status
+            friendship_map[other_id] = (status, f.id)
 
     result = []
     for u in users:
@@ -283,7 +292,8 @@ def list_users(
             "bio": u.bio,
             "avatar_url": u.avatar_url,
             "created_at": u.created_at.isoformat(),
-            "friendship_status": friendship_map.get(u.id),
+            "friendship_status": friendship_map.get(u.id, (None, None))[0],
+            "friendship_id": friendship_map.get(u.id, (None, None))[1],
             "latest_song": _song_dict(latest_song, include_user=False) if latest_song else None,
         })
 

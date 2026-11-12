@@ -93,6 +93,25 @@ def reject_friend_request(
     return {"message": "Friend request rejected"}
 
 
+@router.delete("/{friendship_id}/cancel")
+def cancel_friend_request(
+    friendship_id: str,
+    current_user: User = Depends(get_current_user),
+    db: Session = Depends(get_db),
+):
+    friendship = db.query(Friendship).filter(Friendship.id == friendship_id).first()
+    if not friendship:
+        raise HTTPException(status_code=404, detail="Request not found")
+    if friendship.requester_id != current_user.id:
+        raise HTTPException(status_code=403, detail="Not authorized")
+    if friendship.status != FriendshipStatus.pending:
+        raise HTTPException(status_code=400, detail="Request is not pending")
+
+    db.delete(friendship)
+    db.commit()
+    return {"message": "Friend request cancelled"}
+
+
 @router.get("")
 def list_friends(
     current_user: User = Depends(get_current_user),
