@@ -8,7 +8,7 @@ GET /users/suggested  – a short, ranked list of people (not thousands):
 
 GET /posts/feed       – one timeline of posts, published songs and story clips.
     scope=friends  → your friends and you (Ana Sayfa)
-    scope=everyone → everyone except you (Keşfet)
+    scope=everyone → everyone (Keşfet): your own posts too, your own songs not
     Cursor paging with `before` (created_at of the last item seen).
 """
 import random
@@ -195,11 +195,10 @@ def content_feed(
         return q.order_by(col.desc()).limit(limit + 1)
 
     # Posts (status updates, shared songs, posts on friends' walls)
+    # Everyone sees their own posts too, so what you just shared shows up in Keşfet
     pq = _load_posts_query(db).filter(WallPost.deleted_at.is_(None))
     if authors is not None:
         pq = pq.filter(WallPost.author_id.in_(authors))
-    elif me:
-        pq = pq.filter(WallPost.author_id != me.id)
     posts = window(pq, WallPost.created_at).all()
 
     # Published songs (skip ones the author also posted, to avoid doubles)
