@@ -5,6 +5,7 @@ from typing import List
 from db.session import get_db
 from db.models import User, Friendship, FriendshipStatus
 from services.auth_service import get_current_user
+from services.push import notify
 
 router = APIRouter(prefix="/friends", tags=["friends"])
 
@@ -55,6 +56,9 @@ def send_friend_request(
     db.add(friendship)
     db.commit()
     db.refresh(friendship)
+    notify(db, addressee_id, "friend_request",
+           {"type": "friend_request", "user_id": current_user.id},
+           name=current_user.display_name or current_user.username)
     return {"message": "Friend request sent", "friendship_id": friendship.id}
 
 
@@ -74,6 +78,9 @@ def accept_friend_request(
 
     friendship.status = FriendshipStatus.accepted
     db.commit()
+    notify(db, friendship.requester_id, "friend_accepted",
+           {"type": "friend_accepted", "user_id": current_user.id},
+           name=current_user.display_name or current_user.username)
     return {"message": "Friend request accepted"}
 
 

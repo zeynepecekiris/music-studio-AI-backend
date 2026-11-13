@@ -230,3 +230,14 @@ class Activity(Base):
     actor = relationship("User")
     song = relationship("Song")
 
+
+
+class PushToken(Base):
+    __tablename__ = "push_tokens"
+
+    token = Column(String, primary_key=True)
+    user_id = Column(String, ForeignKey("users.id", ondelete="CASCADE"), nullable=False, index=True)
+    platform = Column(String(16), nullable=True)
+    language = Column(String(8), nullable=True)  # app language, for the notification text
+    created_at = Column(DateTime, default=datetime.utcnow, nullable=False)
+    updated_at = Column(DateTime, default=datetime.utcnow, nullable=False)

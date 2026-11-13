@@ -12,9 +12,10 @@ from fastapi import APIRouter, WebSocket, WebSocketDisconnect, Query, Depends
 from sqlalchemy.orm import Session
 
 from db.session import get_db
-from db.models import Conversation, Message, Song
+from db.models import Conversation, Message, Song, User
 from api.routes.messages import create_message, _message_dict
 from services.auth_service import _decode_token
+from services.push import notify_new_message
 
 router = APIRouter(tags=["websocket"])
 
@@ -30,6 +31,9 @@ class ConnectionManager:
     def disconnect(self, conversation_id: str, ws: WebSocket):
         conns = self._connections.get(conversation_id, [])
         self._connections[conversation_id] = [(uid, w) for uid, w in conns if w is not ws]
+
+    def is_viewing(self, conversation_id: str, user_id: str) -> bool:
+        return any(uid == user_id for uid, _ in self._connections.get(conversation_id, []))
 
     async def broadcast(self, conversation_id: str, data: dict):
         payload = json.dumps(data)
@@ -93,6 +97,9 @@ async def ws_chat(
             payload = _message_dict(msg)
 
             await manager.broadcast(conversation_id, payload)
+            sender = db.query(User).filter(User.id == user_id).first()
+            if sender:
+                notify_new_message(db, conv, msg, sender)
 
     except WebSocketDisconnect:
         manager.disconnect(conversation_id, websocket)

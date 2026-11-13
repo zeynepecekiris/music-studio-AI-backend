@@ -8,6 +8,7 @@ from pydantic import BaseModel
 from db.session import get_db
 from db.models import User, Conversation, Message, Song, Friendship, FriendshipStatus
 from services.auth_service import get_current_user
+from services.push import notify_new_message
 
 router = APIRouter(prefix="/conversations", tags=["messages"])
 
@@ -263,4 +264,5 @@ def send_message(
             raise HTTPException(status_code=404, detail="Song not found or not yours")
 
     msg = create_message(db, conv, current_user.id, req.content, req.song_id)
+    notify_new_message(db, conv, msg, current_user)
     return _message_dict(msg)
