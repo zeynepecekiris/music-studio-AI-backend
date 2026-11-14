@@ -468,3 +468,57 @@ def list_users(
         "per_page": per_page,
         "has_next": (offset + per_page) < total,
     }
+
+
+# ---- Mixer stems ----
+
+def _stems_dict(song: Song) -> dict:
+    ready = song.stems_status == "ready"
+    return {
+        "status": song.stems_status or "none",
+        "stems": song.stems if ready else None,
+    }
+
+
+def _stale(song: Song) -> bool:
+    """A separation that never finished (e.g. the dyno restarted) can be started again."""
+    from datetime import datetime, timedelta
+    started = (song.stems or {}).get("_started") if isinstance(song.stems, dict) else None
+    try:
+        return not started or datetime.utcnow() - datetime.fromisoformat(started) > timedelta(minutes=10)
+    except ValueError:
+        return True
+
+
+@router.post("/songs/{song_id}/stems")
+def start_stems(
+    song_id: str,
+    current_user: User = Depends(get_current_user),
+    db: Session = Depends(get_db),
+):
+    """Split a song into drums / bass / vocals / ... for the mixer. Poll GET for the result."""
+    from datetime import datetime
+    from services import stems as stems_service
+
+    song = db.query(Song).filter(Song.id == song_id).first()
+    if not song or (not song.is_public and song.user_id != current_user.id):
+        raise HTTPException(status_code=404, detail="Song not found")
+    if song.stems_status == "ready" or (song.stems_status == "processing" and not _stale(song)):
+        return _stems_dict(song)
+    song.stems_status = "processing"
+    song.stems = {"_started": datetime.utcnow().isoformat()}
+    db.commit()
+    stems_service.start(song.id)
+    return _stems_dict(song)
+
+
+@router.get("/songs/{song_id}/stems")
+def get_stems(
+    song_id: str,
+    current_user: Optional[User] = Depends(get_optional_user),
+    db: Session = Depends(get_db),
+):
+    song = db.query(Song).filter(Song.id == song_id).first()
+    if not song or (not song.is_public and (not current_user or song.user_id != current_user.id)):
+        raise HTTPException(status_code=404, detail="Song not found")
+    return _stems_dict(song)

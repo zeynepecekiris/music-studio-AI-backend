@@ -6,7 +6,8 @@ from typing import Optional
 from models.schemas import (
     LyricsGenerationRequest,
     LyricsResponse,
-    ErrorResponse
+    ErrorResponse,
+    RhymeRequest,
 )
 from services.openai_service import openai_service
 from services.auth_service import get_current_user
@@ -32,7 +33,8 @@ async def generate_lyrics(request: LyricsGenerationRequest, current_user: User =
             story=request.story,
             theme=request.theme,
             language=request.language,
-            title=request.title
+            title=request.title,
+            style=request.style,
         )
         
         return lyrics_response
@@ -42,6 +44,18 @@ async def generate_lyrics(request: LyricsGenerationRequest, current_user: User =
             status_code=500,
             detail=f"Error generating lyrics: {str(e)}"
         )
+
+@router.post("/rhyme", response_model=dict)
+async def rhyme_lyrics(request: RhymeRequest, current_user: User = Depends(get_current_user)):
+    """Kafiye Sihirbazı: stronger rhymes and flow, same song."""
+    try:
+        lyrics = await openai_service.rhyme_lyrics(
+            lyrics=request.lyrics, story=request.story, style=request.style, language=request.language,
+        )
+        return {"lyrics": lyrics}
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=f"Error polishing lyrics: {str(e)}")
+
 
 @router.post("/improve", response_model=dict)
 async def improve_lyrics(

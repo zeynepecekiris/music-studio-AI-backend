@@ -5,6 +5,43 @@ from typing import Dict, Any
 from config.settings import settings
 from models.schemas import MusicTheme, LyricsResponse
 
+# Lyric styles: how a song in each style is built and how it flows
+STYLE_GUIDES = {
+    "pop": {"name": "Pop",
+        "rules": "Catchy, everyday words, clear images. The hook is easy to sing along to.",
+        "rhyme": "Rhyme line endings in AABB or ABAB.",
+        "structure": "[Verse 1] 4 lines\n[Chorus] 4 lines\n[Verse 2] 4 lines\n[Chorus] 4 lines (same as before)"},
+    "rap": {"name": "Rap / Hip-Hop",
+        "rules": "Dense, rhythmic flow with confident delivery. Punchlines at the end of every 4 bars. Wordplay is welcome.",
+        "rhyme": "Use multisyllable and internal rhymes inside lines, not only at line endings; keep the rhyme sound running across 2-4 bars.",
+        "structure": "[Verse 1] 8 bars (8 lines)\n[Hook] 4 lines\n[Verse 2] 8 bars\n[Hook] 4 lines (same as before)"},
+    "arabesk": {"name": "Arabesk",
+        "rules": "Dramatic, heartfelt lament about fate, longing and pain. Long open vowels at line endings for melismatic singing; exclamations natural to the genre are welcome.",
+        "rhyme": "Rhyme line endings in AAAB or AABB with strong, emotional end rhymes.",
+        "structure": "[Verse 1] 4 lines\n[Nakarat] 4 lines\n[Verse 2] 4 lines\n[Nakarat] 4 lines (same as before)"},
+    "rock": {"name": "Rock",
+        "rules": "Raw, energetic, defiant. Short punchy lines and an anthem-like chorus to shout along.",
+        "rhyme": "Rhyme line endings in AABB; strong one-syllable rhymes hit hardest.",
+        "structure": "[Verse 1] 4 lines\n[Chorus] 4 lines\n[Verse 2] 4 lines\n[Chorus] 4 lines (same as before)"},
+    "ballad": {"name": "Ballad",
+        "rules": "Slow, intimate and tender. Longer flowing lines, every word sung with feeling.",
+        "rhyme": "Rhyme line endings in ABAB with soft, open rhymes.",
+        "structure": "[Verse 1] 4 lines\n[Chorus] 4 lines\n[Bridge] 2 lines\n[Chorus] 4 lines (same as before)"},
+    "lofi": {"name": "Lo-fi",
+        "rules": "Dreamy, laid-back and conversational, like a late-night thought. Few words, lots of space.",
+        "rhyme": "Loose, soft slant rhymes are fine.",
+        "structure": "[Verse] 4 short lines\n[Chorus] 2-3 lines\n[Verse 2] 4 short lines\n[Chorus] 2-3 lines (same as before)"},
+    "folk": {"name": "Folk / Türkü",
+        "rules": "Storytelling, simple honest words, images from nature and daily life. The refrain carries the story's heart.",
+        "rhyme": "Rhyme line endings in AAAB (mani/türkü style) or AABB.",
+        "structure": "[Kıta 1] 4 lines\n[Nakarat] 2-4 lines\n[Kıta 2] 4 lines\n[Nakarat] (same as before)"},
+    "rnb": {"name": "R&B",
+        "rules": "Smooth, warm and sensual. Lines end on open vowels for runs; repetition of short phrases is welcome.",
+        "rhyme": "Rhyme line endings in AABB with smooth slant rhymes.",
+        "structure": "[Verse 1] 4 lines\n[Chorus] 4 lines\n[Verse 2] 4 lines\n[Chorus] 4 lines (same as before)"},
+}
+
+
 class OpenAIService:
     def __init__(self):
         openai.api_key = settings.OPENAI_API_KEY
@@ -79,7 +116,7 @@ class OpenAIService:
             }
         }
 
-    async def generate_lyrics(self, story: str, theme: MusicTheme, language: str = "tr", title: str = None) -> LyricsResponse:
+    async def generate_lyrics(self, story: str, theme: MusicTheme, language: str = "tr", title: str = None, style: str = None) -> LyricsResponse:
         """Generate song lyrics based on story, title and theme using OpenAI"""
         start_time = time.time()
 
@@ -112,62 +149,38 @@ class OpenAIService:
             # Get theme-specific guidance
             theme_guidance = self.theme_prompts.get(theme, {}).get(language, "")
             
-            # Create example to show the format
-            example_format = """
-Example format:
-[Verse 1]
-Golden beaches calling my name
-Sunset colors paint the sky
-Temple bells echo through the rain
-Where the palm trees touch the sky
-
-[Chorus]
-Take me there, to that distant shore
-Where my heart can finally soar
-In the land of smiles and dreams
-Nothing's ever as it seems
-
-[Verse 2]
-Street food vendors light the night
-Tuk-tuks racing through the crowd
-Ancient wisdom shining bright
-In this place I'm finally found
-
-[Bridge]
-Every moment feels brand new
-Every color, every view
-
-[Final Chorus]
-Take me there, to that distant shore
-Where my heart can finally soar
-In the land of smiles and dreams
-Living out my wildest dreams
-"""
-            
+            style_key = (style or "pop").lower()
+            style_rules = STYLE_GUIDES.get(style_key, STYLE_GUIDES["pop"])
             theme_instruction = f"\nTheme guidance: {theme_guidance}" if theme_guidance else ""
+            title_rule = f'- The chorus must contain the title "{title}" (it is the hook).' if title else ""
 
-            full_prompt = f"""You are a world-class songwriter. Your task is to write ORIGINAL, POETIC, ARTISTIC song lyrics in {output_lang}.
+            full_prompt = f"""Write song lyrics in {output_lang} that tell THIS person's story. It is their song.
 
-{title_line}The following story is ONLY for inspiration — do NOT copy, translate, or paraphrase it:
---- STORY (for inspiration only) ---
+{title_line}--- THE USER'S STORY (their own words) ---
 {story}
---- END STORY ---
+--- END ---
 {theme_instruction}
 
-{example_format}
+STYLE: {style_rules["name"]}
+{style_rules["rules"]}
 
-Write a COMPLETE ORIGINAL SONG in {output_lang} that captures the EMOTION and FEELING of the story, not the literal words.
+Faithfulness (most important):
+- The song is about exactly what the user wrote. Do not invent a different story, other characters, places or events.
+- Every name, place, object and event in the story appears in the lyrics.
+- Reuse the user's own most striking words and phrases (at least two), verbatim or almost verbatim, reshaped only to fit rhythm and rhyme. Put one of them in the chorus.
+- Imagery and metaphors may only deepen what the user wrote, never replace it.
+{title_rule}
 
-Rules:
-- Every single line must be a NEW, ORIGINAL poetic expression — never copied from the story
-- Use metaphors, imagery, symbolism, and poetic language
-- Structure: [Verse 1] (4-6 lines), [Chorus] (3-4 lines), [Verse 2] (4-6 lines), [Bridge] (2-4 lines), [Final Chorus] (3-4 lines)
-- All lyrics must be in {output_lang} only
-- Rhyme naturally and musically
-- Make the chorus memorable and singable
-- Each verse should deepen the emotional journey
+Musicality:
+- Lines in the same section have similar syllable counts (within 2), so they sing on the same melody.
+- {style_rules["rhyme"]}
+- The chorus is short, singable and repeats word for word.
+- All lyrics in {output_lang} only.
 
-Output ONLY the song lyrics with section headers. Nothing else."""
+Structure (the song is about 30-60 seconds, keep it compact):
+{style_rules["structure"]}
+
+Output ONLY the lyrics with the section headers in square brackets. Nothing else."""
 
             response = await self.client.chat.completions.create(
                 model="gpt-4o",
@@ -181,10 +194,11 @@ Output ONLY the song lyrics with section headers. Nothing else."""
                         "content": full_prompt
                     }
                 ],
-                max_tokens=2000,
-                temperature=0.92,
-                presence_penalty=0.9,
-                frequency_penalty=0.85
+                max_tokens=1200,
+                temperature=0.8,
+                # low penalties: a chorus has to repeat, and the user's words have to stay
+                presence_penalty=0.2,
+                frequency_penalty=0.1
             )
 
             # Extract lyrics from response
@@ -208,6 +222,37 @@ Output ONLY the song lyrics with section headers. Nothing else."""
             raise Exception(f"OpenAI API error: {str(e)}")
         except Exception as e:
             raise Exception(f"Error generating lyrics: {str(e)}")
+
+    async def rhyme_lyrics(self, lyrics: str, story: str = None, style: str = None, language: str = "tr") -> str:
+        """Kafiye Sihirbazı: same song, same meaning and words, stronger rhymes and flow."""
+        langs = {"tr": "Türkçe", "en": "English", "es": "Spanish", "ar": "Arabic", "de": "German",
+                 "fr": "French", "ko": "Korean", "zh": "Chinese", "it": "Italian"}
+        output_lang = langs.get(language, "English")
+        guide = STYLE_GUIDES.get((style or "pop").lower(), STYLE_GUIDES["pop"])
+        story_block = f"\nThe user's story (keep its names, places and key phrases):\n{story}\n" if story else ""
+        prompt = f"""Polish these {guide["name"]} song lyrics in {output_lang}. Keep the same song: same story, same section headers, same number of lines per section, and keep the user's names, places and key phrases.
+
+Improve only the musicality:
+- {guide["rhyme"]}
+- Even out syllable counts inside each section (within 2) so lines sing on one melody.
+- {guide["rules"]}
+- The chorus stays identical every time it repeats.
+{story_block}
+--- LYRICS ---
+{lyrics}
+--- END ---
+
+Output ONLY the improved lyrics with the section headers in square brackets."""
+        response = await self.client.chat.completions.create(
+            model="gpt-4o",
+            messages=[
+                {"role": "system", "content": "You are a meticulous songwriter and lyric editor who perfects rhyme and flow without changing what a song is about."},
+                {"role": "user", "content": prompt},
+            ],
+            max_tokens=1200,
+            temperature=0.6,
+        )
+        return response.choices[0].message.content.strip()
 
     async def improve_lyrics(self, original_lyrics: str, story: str, theme: MusicTheme) -> str:
         """Improve existing lyrics based on feedback"""

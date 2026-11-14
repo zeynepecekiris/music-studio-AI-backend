@@ -222,6 +222,10 @@ class ElevenLabsService:
         if story_excerpt:
             prompt_parts.append(f"Inspired by: {story_excerpt}")
 
+        vibe = (request.vibe or "").strip().replace("\n", " ")
+        if vibe:
+            prompt_parts.append(f"Vibe: {vibe[:200]}.")
+
         if request.tempo < 90:
             prompt_parts.append(f"Slow tempo, {request.tempo} BPM.")
         elif request.tempo > 140:

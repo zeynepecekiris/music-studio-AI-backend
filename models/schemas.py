@@ -97,6 +97,13 @@ class LyricsGenerationRequest(BaseModel):
     theme: MusicTheme = Field(..., description="Music theme")
     user_id: Optional[str] = Field(None, description="User ID for tracking")
     language: str = Field("tr", description="Language code (tr, en, es)")
+    style: Optional[str] = Field(None, max_length=20, description="Lyric style: pop, rap, arabesk, rock, ballad, lofi, folk, rnb")
+
+class RhymeRequest(BaseModel):
+    lyrics: str = Field(..., min_length=10, max_length=4000)
+    story: Optional[str] = Field(None, max_length=2000)
+    style: Optional[str] = Field(None, max_length=20)
+    language: str = Field("tr")
 
 class MusicGenerationRequest(BaseModel):
     lyrics: Optional[str] = Field(None, description="Generated lyrics (optional for instrumental)")
@@ -111,6 +118,7 @@ class MusicGenerationRequest(BaseModel):
     language: str = Field("tr", description="Language code (tr, en, es)")
     user_id: Optional[str] = Field(None, description="User ID for tracking")
     title: Optional[str] = Field(None, max_length=120, description="Song title shown on profiles")
+    vibe: Optional[str] = Field(None, max_length=200, description="Free-text vibe from the XY pad / dice, e.g. 'night drive, melancholic, cyberpunk twist'")
 
 # Response Models
 class LyricsResponse(BaseModel):

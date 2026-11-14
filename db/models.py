@@ -72,6 +72,9 @@ class Song(Base):
     duration = Column(Integer, nullable=True)
     is_public = Column(Boolean, default=True)
     created_at = Column(DateTime, default=datetime.utcnow)
+    # Mixer: {"drums": url, "bass": url, ...}; status None | processing | ready | failed (migration 0007)
+    stems = Column(JSON, nullable=True)
+    stems_status = Column(String(16), nullable=True)
 
     user = relationship("User", back_populates="songs", foreign_keys=[user_id])
     messages = relationship("Message", back_populates="song")
