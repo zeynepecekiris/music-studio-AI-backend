@@ -33,6 +33,8 @@ class CreatePostRequest(BaseModel):
     # Quote someone's post or any public song, with your own words on top
     quote_post_id: Optional[str] = None
     quote_song_id: Optional[str] = None
+    # Post the song as a music clip (needs song_id)
+    is_clip: bool = False
 
 
 def _friend_ids(db: Session, user_id: str) -> set:
@@ -94,6 +96,7 @@ def _post_dict(post: WallPost, viewer: Optional[User]) -> dict:
         "song": song,
         "mentions": [_mini_user(m.mentioned_user) for m in post.mentions],
         "quote": _quote_dict(post),
+        "is_clip": bool(post.is_clip) and song is not None,
         "can_delete": viewer_id in (post.author_id, post.wall_owner_id),
     }
 
@@ -166,8 +169,13 @@ def create_post(
             Song.id == req.quote_song_id, (Song.is_public == True) | (Song.user_id == current_user.id)).first():
         raise HTTPException(status_code=404, detail="Song not found")
 
+    if req.is_clip and not req.song_id:
+        raise HTTPException(status_code=400, detail="A clip needs a song")
     if req.song_id:
-        song = db.query(Song).filter(Song.id == req.song_id, Song.user_id == current_user.id).first()
+        # A clip may use any public song (you made a clip of a friend's song)
+        mine_or_public = (Song.user_id == current_user.id) | (Song.is_public == True) if req.is_clip \
+            else (Song.user_id == current_user.id)
+        song = db.query(Song).filter(Song.id == req.song_id, mine_or_public).first()
         if not song:
             raise HTTPException(status_code=404, detail="Song not found or not yours")
 
@@ -184,6 +192,7 @@ def create_post(
         song_id=req.song_id,
         quote_post_id=req.quote_post_id,
         quote_song_id=req.quote_song_id,
+        is_clip=req.is_clip,
     )
     post.mentions = [PostMention(mentioned_user_id=m) for m in mention_ids]
     db.add(post)

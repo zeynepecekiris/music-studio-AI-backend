@@ -136,6 +136,7 @@ class WallPost(Base):
     song_id = Column(String, ForeignKey("songs.id", ondelete="SET NULL"), nullable=True)
     quote_post_id = Column(String, ForeignKey("wall_posts.id", ondelete="SET NULL"), nullable=True)
     quote_song_id = Column(String, ForeignKey("songs.id", ondelete="SET NULL"), nullable=True)
+    is_clip = Column(Boolean, nullable=False, default=False)  # show the song as a music clip
     created_at = Column(DateTime, default=datetime.utcnow, nullable=False)
     deleted_at = Column(DateTime, nullable=True)
 

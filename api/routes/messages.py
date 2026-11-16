@@ -259,9 +259,11 @@ def send_message(
     conv = _member_or_403(db, conversation_id, current_user.id)
 
     if req.song_id:
-        song = db.query(Song).filter(Song.id == req.song_id, Song.user_id == current_user.id).first()
+        # Your own songs, or any public song you saw in a post (forwarding)
+        song = db.query(Song).filter(
+            Song.id == req.song_id, (Song.is_public == True) | (Song.user_id == current_user.id)).first()
         if not song:
-            raise HTTPException(status_code=404, detail="Song not found or not yours")
+            raise HTTPException(status_code=404, detail="Song not found")
 
     msg = create_message(db, conv, current_user.id, req.content, req.song_id)
     notify_new_message(db, conv, msg, current_user)
