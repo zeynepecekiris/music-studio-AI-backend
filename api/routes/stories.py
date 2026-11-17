@@ -17,6 +17,7 @@ from sqlalchemy.orm import Session, joinedload
 from db.models import Friendship, FriendshipStatus, MusicStory, Song, StoryView, User
 from db.session import get_db
 from services.auth_service import get_current_user, get_optional_user
+from services.moderation import hidden_user_ids
 
 router = APIRouter(tags=["stories"])
 
@@ -80,6 +81,9 @@ def story_feed(me: Optional[User] = Depends(get_optional_user), db: Session = De
         .order_by(MusicStory.created_at.asc())
         .all()
     )
+    hidden = hidden_user_ids(db, me.id if me else None)
+    if hidden:
+        stories = [s for s in stories if s.user_id not in hidden]
     seen_ids, friend_ids = set(), set()
     if me:
         ids = [s.id for s in stories]

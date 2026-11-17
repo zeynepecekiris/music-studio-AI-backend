@@ -10,6 +10,8 @@ from services.auth_service import get_current_user, get_optional_user
 from services.elevenlabs_service import elevenlabs_service, PromptSafetyError
 from services.storage_service import upload_audio
 from services.world import world_fields, city_key
+from services.moderation import hidden_user_ids
+from db.models import UserBlock
 from models.schemas import MusicGenerationRequest
 
 router = APIRouter(tags=["songs"])
@@ -155,6 +157,9 @@ def get_feed(
         query = db.query(Song).options(joinedload(Song.user)).filter(
             (Song.is_public == True) | (Song.user_id.in_(friend_ids))
         )
+        hidden = hidden_user_ids(db, current_user.id)
+        if hidden:
+            query = query.filter(Song.user_id.notin_(hidden))
     else:
         query = db.query(Song).options(joinedload(Song.user)).filter(Song.is_public == True)
 
@@ -186,10 +191,19 @@ def _build_profile(db: Session, user: User, current_user: Optional[User]) -> dic
     if not can_view_profile(current_user, user):
         raise HTTPException(status_code=403, detail="This profile is private")
 
+    # Blocks: someone who blocked me is gone for me; someone I blocked shows
+    # only a shell with "Engeli kaldır"
+    blocked_by_me = False
+    if current_user and current_user.id != user.id:
+        if db.query(UserBlock).filter(UserBlock.blocker_id == user.id, UserBlock.blocked_id == current_user.id).first():
+            raise HTTPException(status_code=404, detail="User not found")
+        blocked_by_me = db.query(UserBlock).filter(
+            UserBlock.blocker_id == current_user.id, UserBlock.blocked_id == user.id).first() is not None
+
     songs_query = db.query(Song).filter(Song.user_id == user.id)
     if not current_user or current_user.id != user.id:
         songs_query = songs_query.filter(Song.is_public == True)
-    songs = songs_query.order_by(Song.created_at.desc()).all()
+    songs = [] if blocked_by_me else songs_query.order_by(Song.created_at.desc()).all()
 
     friendship_status = None
     friendship_id = None
@@ -211,6 +225,7 @@ def _build_profile(db: Session, user: User, current_user: Optional[User]) -> dic
     ).scalar() or 0
     profile["is_self"] = bool(current_user and current_user.id == user.id)
     profile["songs"] = [_song_dict(s, include_user=False) for s in songs]
+    profile["blocked_by_me"] = blocked_by_me
     return profile
 
 
@@ -308,9 +323,11 @@ def search_users(
     db: Session = Depends(get_db),
 ):
     term = f"%{username.strip().lstrip('@')}%"
-    users = db.query(User).filter(
-        User.username.ilike(term) | User.display_name.ilike(term)
-    ).limit(20).all()
+    hidden = hidden_user_ids(db, current_user.id if current_user else None)
+    q = db.query(User).filter(User.username.ilike(term) | User.display_name.ilike(term))
+    if hidden:
+        q = q.filter(User.id.notin_(hidden))
+    users = q.limit(20).all()
     friendship_map = {}
     if current_user:
         friendships = db.query(Friendship).filter(
@@ -359,6 +376,9 @@ def list_users(
     offset = (page - 1) * per_page
 
     query = db.query(User)
+    hidden = hidden_user_ids(db, current_user.id if current_user else None)
+    if hidden:
+        query = query.filter(User.id.notin_(hidden))
     order = User.created_at.desc()
     if scope:
         if not current_user:

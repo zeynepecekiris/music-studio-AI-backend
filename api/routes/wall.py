@@ -19,6 +19,7 @@ from api.routes.songs import can_view_profile
 from db.models import Friendship, FriendshipStatus, PostMention, Song, User, WallPost
 from db.session import get_db
 from services.auth_service import get_current_user, get_optional_user
+from services.moderation import hidden_user_ids
 
 router = APIRouter(tags=["wall"])
 
@@ -126,8 +127,13 @@ def get_wall(
         raise HTTPException(status_code=404, detail="User not found")
     if not can_view_profile(current_user, owner):
         raise HTTPException(status_code=403, detail="This profile is private")
+    hidden = hidden_user_ids(db, current_user.id if current_user else None)
+    if user_id in hidden:
+        return {"items": [], "has_more": False, "next_before": None, "can_post": False}
 
     q = _load_posts_query(db).filter(WallPost.wall_owner_id == user_id, WallPost.deleted_at.is_(None))
+    if hidden:
+        q = q.filter(WallPost.author_id.notin_(hidden))
     if before is not None:
         q = q.filter(WallPost.created_at < before)
     posts = q.order_by(WallPost.created_at.desc()).limit(limit + 1).all()
@@ -155,6 +161,8 @@ def create_post(
     if not owner:
         raise HTTPException(status_code=404, detail="User not found")
 
+    if user_id in hidden_user_ids(db, current_user.id):
+        raise HTTPException(status_code=403, detail="Blocked")
     my_friends = _friend_ids(db, current_user.id)
     if current_user.id != user_id and user_id not in my_friends:
         raise HTTPException(status_code=403, detail="Only friends can post on this wall")

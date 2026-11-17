@@ -245,3 +245,27 @@ class PushToken(Base):
     language = Column(String(8), nullable=True)  # app language, for the notification text
     created_at = Column(DateTime, default=datetime.utcnow, nullable=False)
     updated_at = Column(DateTime, default=datetime.utcnow, nullable=False)
+
+
+class UserBlock(Base):
+    """blocker no longer sees blocked, and the other way round."""
+    __tablename__ = "user_blocks"
+
+    blocker_id = Column(String, ForeignKey("users.id", ondelete="CASCADE"), primary_key=True)
+    blocked_id = Column(String, ForeignKey("users.id", ondelete="CASCADE"), primary_key=True, index=True)
+    created_at = Column(DateTime, default=datetime.utcnow, nullable=False)
+
+
+class Report(Base):
+    """A user's report of a post, user, message, story or song."""
+    __tablename__ = "reports"
+
+    id = Column(String, primary_key=True, default=_uuid)
+    reporter_id = Column(String, ForeignKey("users.id", ondelete="CASCADE"), nullable=False)
+    target_type = Column(String(16), nullable=False)
+    target_id = Column(String, nullable=False)
+    target_user_id = Column(String, ForeignKey("users.id", ondelete="SET NULL"), nullable=True)
+    reason = Column(String(32), nullable=False)
+    note = Column(Text, nullable=True)
+    status = Column(String(16), nullable=False, default="open")
+    created_at = Column(DateTime, default=datetime.utcnow, nullable=False)

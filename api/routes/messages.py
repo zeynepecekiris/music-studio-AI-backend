@@ -8,6 +8,7 @@ from pydantic import BaseModel
 from db.session import get_db
 from db.models import User, Conversation, Message, Song, Friendship, FriendshipStatus
 from services.auth_service import get_current_user
+from services.moderation import hidden_user_ids, is_blocked_between
 from services.push import notify_new_message
 
 router = APIRouter(prefix="/conversations", tags=["messages"])
@@ -120,6 +121,10 @@ def list_conversations(
     ).order_by(
         func.coalesce(Conversation.last_message_at, Conversation.created_at).desc()
     ).all()
+    hidden = hidden_user_ids(db, current_user.id)
+    if hidden:
+        convs = [c for c in convs
+                 if (c.user_b_id if c.user_a_id == current_user.id else c.user_a_id) not in hidden]
     if not convs:
         return []
     ids = [c.id for c in convs]
@@ -171,6 +176,7 @@ def unread_count(
             (Conversation.user_b_id == current_user.id),
             Message.sender_id != current_user.id,
             Message.read_at.is_(None),
+            Message.sender_id.notin_(hidden_user_ids(db, current_user.id) or {""}),
         )
         .scalar()
     )
@@ -186,6 +192,8 @@ def start_conversation(
     other = db.query(User).filter(User.id == other_user_id).first()
     if not other:
         raise HTTPException(status_code=404, detail="User not found")
+    if is_blocked_between(db, current_user.id, other_user_id):
+        raise HTTPException(status_code=403, detail="Blocked")
 
     conv = _get_or_create_conversation(db, current_user.id, other_user_id)
     return {"conversation_id": conv.id}
@@ -257,6 +265,9 @@ def send_message(
         raise HTTPException(status_code=400, detail="Message must have content or a song")
 
     conv = _member_or_403(db, conversation_id, current_user.id)
+    other_id = conv.user_b_id if conv.user_a_id == current_user.id else conv.user_a_id
+    if is_blocked_between(db, current_user.id, other_id):
+        raise HTTPException(status_code=403, detail="Blocked")
 
     if req.song_id:
         # Your own songs, or any public song you saw in a post (forwarding)

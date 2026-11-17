@@ -6,6 +6,7 @@ from db.session import get_db
 from db.models import User, Friendship, FriendshipStatus
 from services.auth_service import get_current_user
 from services.push import notify
+from services.moderation import is_blocked_between
 
 router = APIRouter(prefix="/friends", tags=["friends"])
 
@@ -43,6 +44,8 @@ def send_friend_request(
     target = db.query(User).filter(User.id == addressee_id).first()
     if not target:
         raise HTTPException(status_code=404, detail="User not found")
+    if is_blocked_between(db, current_user.id, addressee_id):
+        raise HTTPException(status_code=403, detail="Blocked")
 
     existing = db.query(Friendship).filter(
         ((Friendship.requester_id == current_user.id) & (Friendship.addressee_id == addressee_id)) |

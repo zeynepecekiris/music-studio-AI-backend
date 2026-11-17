@@ -26,6 +26,7 @@ from api.routes.likes import like_info
 from db.models import Activity, Friendship, FriendshipStatus, MusicStory, Song, StoryView, User, WallPost
 from db.session import get_db
 from services.auth_service import get_optional_user
+from services.moderation import hidden_user_ids
 from services.world import city_key
 
 router = APIRouter(tags=["discover"])
@@ -105,7 +106,8 @@ def suggested_users(
     users = db.query(User)
     if me:
         users = users.filter(User.id != me.id)
-    pool = [u for u in users.all() if u.id not in my_friends]
+    hidden = hidden_user_ids(db, me.id if me else None)
+    pool = [u for u in users.all() if u.id not in my_friends and u.id not in hidden]
 
     pool_friends = _accepted_friends_of(db, [u.id for u in pool])
     my_genres = set(me.favorite_genres or []) if me else set()
@@ -196,13 +198,18 @@ def content_feed(
 
     # Posts (status updates, shared songs, posts on friends' walls)
     # Everyone sees their own posts too, so what you just shared shows up in Keşfet
+    hidden = hidden_user_ids(db, me.id if me else None)
     pq = _load_posts_query(db).filter(WallPost.deleted_at.is_(None))
+    if hidden:
+        pq = pq.filter(WallPost.author_id.notin_(hidden), WallPost.wall_owner_id.notin_(hidden))
     if authors is not None:
         pq = pq.filter(WallPost.author_id.in_(authors))
     posts = window(pq, WallPost.created_at).all()
 
     # Published songs (skip ones the author also posted, to avoid doubles)
     sq = db.query(Song).options(joinedload(Song.user)).filter(Song.is_public == True)
+    if hidden:
+        sq = sq.filter(Song.user_id.notin_(hidden))
     if authors is not None:
         sq = sq.filter(Song.user_id.in_(authors))
     elif me:
@@ -217,6 +224,8 @@ def content_feed(
     # Story clips that are still live
     cq = db.query(MusicStory).options(joinedload(MusicStory.user), joinedload(MusicStory.song)) \
         .filter(MusicStory.expires_at > now)
+    if hidden:
+        cq = cq.filter(MusicStory.user_id.notin_(hidden))
     if authors is not None:
         cq = cq.filter(MusicStory.user_id.in_(authors))
     elif me:
@@ -229,12 +238,14 @@ def content_feed(
 
     # Likes and profile changes
     aq = db.query(Activity).options(joinedload(Activity.actor), joinedload(Activity.song).joinedload(Song.user))
+    if hidden:
+        aq = aq.filter(Activity.actor_id.notin_(hidden))
     if authors is not None:
         aq = aq.filter(Activity.actor_id.in_(authors))
     elif me:
         aq = aq.filter(Activity.actor_id != me.id)
     acts = [a for a in window(aq, Activity.created_at).all()
-            if a.kind != "like_song" or (a.song and a.song.is_public)]
+            if a.kind != "like_song" or (a.song and a.song.is_public and a.song.user_id not in hidden)]
 
     def act_item(a):
         base = {"id": f"act-{a.id}", "created_at": a.created_at.isoformat(), "user": _mini_user(a.actor)}

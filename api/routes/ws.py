@@ -16,6 +16,7 @@ from db.models import Conversation, Message, Song, User
 from api.routes.messages import create_message, _message_dict
 from services.auth_service import _decode_token
 from services.push import notify_new_message
+from services.moderation import is_blocked_between
 
 router = APIRouter(tags=["websocket"])
 
@@ -85,6 +86,11 @@ async def ws_chat(
             song_id = data.get("song_id")
 
             if not content and not song_id:
+                continue
+
+            # Nothing goes through between people who blocked each other
+            other_id = conv.user_b_id if conv.user_a_id == user_id else conv.user_a_id
+            if is_blocked_between(db, user_id, other_id):
                 continue
 
             # Validate song ownership
