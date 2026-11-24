@@ -220,6 +220,32 @@ class SongLike(Base):
     created_at = Column(DateTime, default=datetime.utcnow, nullable=False)
 
 
+class FeedLike(Base):
+    """A like on a feed item that isn't a song (text post, profile change, clip)."""
+    __tablename__ = "feed_likes"
+
+    user_id = Column(String, ForeignKey("users.id", ondelete="CASCADE"), primary_key=True)
+    target_type = Column(String(16), primary_key=True)   # post | story | activity
+    target_id = Column(String, primary_key=True)
+    created_at = Column(DateTime, default=datetime.utcnow, nullable=False)
+
+
+class Comment(Base):
+    """A comment under a feed item: post | song | story | activity."""
+    __tablename__ = "comments"
+
+    id = Column(String, primary_key=True, default=_uuid)
+    target_type = Column(String(16), nullable=False)
+    target_id = Column(String, nullable=False)
+    target_owner_id = Column(String, ForeignKey("users.id", ondelete="CASCADE"), nullable=True)
+    author_id = Column(String, ForeignKey("users.id", ondelete="CASCADE"), nullable=False, index=True)
+    content = Column(Text, nullable=False)
+    created_at = Column(DateTime, default=datetime.utcnow, nullable=False)
+    deleted_at = Column(DateTime, nullable=True)
+
+    author = relationship("User", foreign_keys=[author_id])
+
+
 class Activity(Base):
     """Things people do that others can discover on Keşfet (likes, profile changes)."""
     __tablename__ = "activities"

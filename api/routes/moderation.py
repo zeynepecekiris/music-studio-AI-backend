@@ -4,7 +4,7 @@ Block users and report content (App Store guideline 1.2).
 POST   /users/{id}/block   block someone (also ends a friendship/request)
 DELETE /users/{id}/block   unblock
 GET    /blocks             people I blocked
-POST   /reports            report a post, user, message, story or song
+POST   /reports            report a post, user, message, story, song or comment
 """
 from datetime import datetime
 from typing import Optional
@@ -14,14 +14,14 @@ from pydantic import BaseModel, Field
 from sqlalchemy import func, or_
 from sqlalchemy.orm import Session
 
-from db.models import Friendship, Message, MusicStory, Report, Song, User, UserBlock, WallPost
+from db.models import Comment, Friendship, Message, MusicStory, Report, Song, User, UserBlock, WallPost
 from db.session import get_db
 from services.auth_service import get_current_user
 from services.moderation import AUTO_HIDE_REPORTS, notify_admin_of_report
 
 router = APIRouter(tags=["moderation"])
 
-TARGETS = {"post", "user", "message", "story", "song"}
+TARGETS = {"post", "user", "message", "story", "song", "comment"}
 REASONS = {"spam", "harassment", "hate", "sexual", "violence", "copyright", "other"}
 
 
@@ -75,6 +75,8 @@ def _owner_of(db: Session, target_type: str, target_id: str) -> Optional[str]:
         row = db.query(WallPost.author_id).filter(WallPost.id == target_id).first()
     elif target_type == "message":
         row = db.query(Message.sender_id).filter(Message.id == target_id).first()
+    elif target_type == "comment":
+        row = db.query(Comment.author_id).filter(Comment.id == target_id).first()
     elif target_type == "story":
         row = db.query(MusicStory.user_id).filter(MusicStory.id == target_id).first()
     else:
@@ -98,12 +100,17 @@ def report(req: ReportRequest, me: User = Depends(get_current_user), db: Session
 
     # Enough different people reporting the same post or story hides it right away
     hidden = False
-    if req.target_type in ("post", "story"):
+    if req.target_type in ("post", "story", "comment"):
         n = db.query(func.count(func.distinct(Report.reporter_id))).filter(
             Report.target_type == req.target_type, Report.target_id == req.target_id,
         ).scalar() or 0
         if n >= AUTO_HIDE_REPORTS:
-            if req.target_type == "post":
+            if req.target_type == "comment":
+                c = db.query(Comment).filter(Comment.id == req.target_id).first()
+                if c and c.deleted_at is None:
+                    c.deleted_at = datetime.utcnow()
+                    hidden = True
+            elif req.target_type == "post":
                 post = db.query(WallPost).filter(WallPost.id == req.target_id).first()
                 if post and post.deleted_at is None:
                     post.deleted_at = datetime.utcnow()

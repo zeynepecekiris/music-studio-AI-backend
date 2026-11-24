@@ -10,7 +10,7 @@ sys.path.append(os.path.dirname(os.path.dirname(__file__)))
 
 from config.settings import settings
 from api.routes import lyrics, music, video, download_routes
-from api.routes import auth, songs, friends, messages, ws, wall, ads, lyrics_drafts, stories, discover, likes, notifications, moderation
+from api.routes import auth, songs, friends, messages, ws, wall, ads, lyrics_drafts, stories, discover, likes, notifications, moderation, social
 from models.schemas import HealthCheck
 
 # Create all tables on startup (Alembic handles migrations in production)
@@ -59,6 +59,7 @@ app.include_router(discover.router)
 app.include_router(likes.router)
 app.include_router(notifications.router)
 app.include_router(moderation.router)
+app.include_router(social.router)
 
 # Static files
 app.mount("/music", StaticFiles(directory=os.path.join(settings.UPLOAD_DIR, "music"), check_dir=False), name="music")

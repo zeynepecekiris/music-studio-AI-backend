@@ -58,6 +58,28 @@ TEXTS: Dict[str, Dict[str, tuple]] = {
         "zh": ("{name}", "给你发了一首歌 🎵"),
         "ar": ("{name}", "أرسل لك أغنية 🎵"),
     },
+    "feed_like": {
+        "tr": ("{name}", "Paylaşımını beğendi ❤️"),
+        "en": ("{name}", "Liked your post ❤️"),
+        "de": ("{name}", "Gefällt dein Beitrag ❤️"),
+        "es": ("{name}", "Le gustó tu publicación ❤️"),
+        "fr": ("{name}", "A aimé ta publication ❤️"),
+        "it": ("{name}", "Ha messo mi piace al tuo post ❤️"),
+        "ko": ("{name}", "회원님의 게시물을 좋아해요 ❤️"),
+        "zh": ("{name}", "赞了你的动态 ❤️"),
+        "ar": ("{name}", "أعجب بمنشورك ❤️"),
+    },
+    "comment": {
+        "tr": ("{name} yorum yaptı 💬", "{text}"),
+        "en": ("{name} commented 💬", "{text}"),
+        "de": ("{name} hat kommentiert 💬", "{text}"),
+        "es": ("{name} comentó 💬", "{text}"),
+        "fr": ("{name} a commenté 💬", "{text}"),
+        "it": ("{name} ha commentato 💬", "{text}"),
+        "ko": ("{name}님이 댓글을 남겼어요 💬", "{text}"),
+        "zh": ("{name} 评论了 💬", "{text}"),
+        "ar": ("{name} علّق 💬", "{text}"),
+    },
 }
 
 
@@ -67,6 +89,8 @@ SOUNDS = {
     "friend_accepted": "friend.wav",
     "message": "message.wav",
     "song_message": "message.wav",
+    "feed_like": "friend.wav",
+    "comment": "message.wav",
 }
 
 

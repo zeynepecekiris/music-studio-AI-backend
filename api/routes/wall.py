@@ -140,8 +140,27 @@ def get_wall(
 
     has_more = len(posts) > limit
     posts = posts[:limit]
+    from api.routes.social import social_info  # social imports nothing from wall; keep it lazy anyway
+    social = social_info(db, [("post", p.id) for p in posts], current_user)
+    items = []
+    for p in posts:
+        d = _post_dict(p, current_user)
+        d["social"] = {"target_type": "post", "target_id": p.id, **social.get(("post", p.id), {"comment_count": 0})}
+        items.append(d)
+    # ❤️ on a post with a song likes the song, so the songs need their counts too
+    from api.routes.likes import like_info
+    songs = []
+    for d in items:
+        q = d.get("quote") or {}
+        for s in (d.get("song"), q.get("song") if q.get("type") == "song" else None,
+                  (q.get("post") or {}).get("song") if q.get("type") == "post" else None):
+            if s:
+                songs.append(s)
+    info = like_info(db, [s["id"] for s in songs], current_user)
+    for s in songs:
+        s["like_count"], s["liked"] = info.get(s["id"], (0, False))
     return {
-        "items": [_post_dict(p, current_user) for p in posts],
+        "items": items,
         "has_more": has_more,
         "next_before": posts[-1].created_at.isoformat() if has_more and posts else None,
         "can_post": bool(current_user) and (

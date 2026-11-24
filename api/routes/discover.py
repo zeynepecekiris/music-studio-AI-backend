@@ -23,6 +23,7 @@ from api.routes.songs import _song_dict
 from api.routes.stories import _story_dict
 from api.routes.wall import _load_posts_query, _post_dict, _mini_user
 from api.routes.likes import like_info
+from api.routes.social import social_info
 from db.models import Activity, Friendship, FriendshipStatus, MusicStory, Song, StoryView, User, WallPost
 from db.session import get_db
 from services.auth_service import get_optional_user
@@ -174,6 +175,18 @@ def suggested_users(
     return {"items": items, "total": total, "has_more": offset + limit < total, "next_offset": offset + limit}
 
 
+def _social_key(it: dict):
+    """What a feed card's likes and comments belong to."""
+    t = it["type"]
+    if t == "post":
+        return ("post", it["post"]["id"])
+    if t in ("song", "like"):
+        return ("song", it["song"]["id"])   # a "liked this song" card talks about the song
+    if t == "clip":
+        return ("story", it["story"]["id"])
+    return ("activity", it["id"][len("act-"):])
+
+
 @router.get("/posts/feed")
 def content_feed(
     scope: str = Query("everyone", pattern="^(friends|everyone)$"),
@@ -286,6 +299,13 @@ def content_feed(
     info = like_info(db, [x["id"] for x in songs_shown], me)
     for x in songs_shown:
         x["like_count"], x["liked"] = info.get(x["id"], (0, False))
+
+    # Likes (non-song items) and comment counts for every card
+    keys = {it["id"]: _social_key(it) for _, it in page}
+    social = social_info(db, keys.values(), me)
+    for _, it in page:
+        it["social"] = {"target_type": keys[it["id"]][0], "target_id": keys[it["id"]][1],
+                        **social.get(keys[it["id"]], {"comment_count": 0})}
     return {
         "items": [item for _, item in page],
         "has_more": has_more,
